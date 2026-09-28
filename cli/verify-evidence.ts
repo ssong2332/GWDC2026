@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { createPublicClient, http } from "viem";
+import { rpcErrorInfo } from "@/adapters/chain/readRetry";
 import { createViemVaultReader } from "@/adapters/chain/viemVault";
 import { DEFAULT_VERIFY_RPC } from "@/config/constants";
 import type { EvidenceExport } from "@/core/domain/evidence";
@@ -67,7 +68,7 @@ if (entry !== undefined && path.resolve(entry).toLowerCase() === fileURLToPath(i
         .catch((err: unknown) => {
             const code = err instanceof AppError ? err.code : "INTERNAL";
             const message = err instanceof AppError ? err.message : (err instanceof Error ? err.message : String(err)).split("\n")[0];
-            console.error(JSON.stringify({ ts: new Date().toISOString(), level: "error", event: "verify.failed", code, message }));
+            console.error(JSON.stringify({ ts: new Date().toISOString(), level: "error", event: "verify.failed", code, message, ...rpcErrorInfo(err) }));
             process.exitCode = 1;
         });
 }

@@ -1,7 +1,9 @@
-import { BlockNotFoundError, HttpRequestError, encodeAbiParameters, encodeEventTopics, getAddress, type Log } from "viem";
+import { BlockNotFoundError, HttpRequestError, RpcRequestError, TransactionReceiptNotFoundError, encodeAbiParameters, encodeEventTopics, getAddress, type Log } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { policyVaultAbi } from "@/adapters/chain/generated/PolicyVault";
+import { rpcErrorInfo } from "@/adapters/chain/readRetry";
 import { createViemAgentWriter, createViemVaultReader } from "@/adapters/chain/viemVault";
+import { AppError } from "@/core/errors";
 
 // T-07 repro: a load-balanced public RPC (sepolia.base.org) can answer from a node that has not seen the block yet.
 // Observed: `Block at number "47416423" could not be found.` right after a receipt from another node.
@@ -124,5 +126,72 @@ describe("viemVault on a lagging RPC node (T-07, src/adapters/chain/viemVault.ts
         const reader = createViemVaultReader({ client: { getBlockNumber } as never, vault: VAULT, chainId: 84532, retry: noSleep });
         expect(await reader.latestBlock()).toBe(BLOCK);
         expect(getBlockNumber).toHaveBeenCalledTimes(2);
+    });
+
+    it("reader.getReceiptEvents: an unknown tx hash (TransactionReceiptNotFoundError) → null after exactly one call, not retried", async () => {
+        const getTransactionReceipt = vi.fn(async ({ hash }: { hash: `0x${string}` }) => {
+            throw new TransactionReceiptNotFoundError({ hash });
+        });
+        const sleep = vi.fn(async () => {});
+        const reader = createViemVaultReader({ client: { getTransactionReceipt } as never, vault: VAULT, chainId: 84532, retry: { sleep } });
+
+        expect(await reader.getReceiptEvents(TX)).toBeNull();
+        expect(getTransactionReceipt).toHaveBeenCalledTimes(1);
+        expect(sleep).not.toHaveBeenCalled();
+    });
+
+    it("reader.getLogs: a 14,025-block range on an RPC limited to 1,000 blocks per eth_getLogs → every chunk within the limit", async () => {
+        const from = 47_419_193n;
+        const to = from + 14_025n;
+        const getLogs = vi.fn(async ({ fromBlock, toBlock }: { fromBlock: bigint; toBlock: bigint }) => {
+            if (toBlock - fromBlock + 1n > 1_000n)
+                throw new RpcRequestError({
+                    body: { method: "eth_getLogs" },
+                    error: { code: -32614, message: "eth_getLogs is limited to a 1,000 range" },
+                    url: "https://rpc.invalid",
+                });
+            return toBlock === to ? [pausedLog(to)] : [];
+        });
+        const reader = createViemVaultReader({ client: { getLogs, getBlock: laggingGetBlock(0) } as never, vault: VAULT, chainId: 84532, retry: noSleep });
+
+        const events = await reader.getLogs(from, to);
+
+        expect(events.map((e) => e.blockNumber)).toEqual([to]);
+        const ranges = getLogs.mock.calls.map(([a]) => [a.fromBlock, a.toBlock]);
+        expect(ranges[0][0]).toBe(from);
+        expect(ranges[ranges.length - 1][1]).toBe(to);
+        for (let i = 1; i < ranges.length; i++) expect(ranges[i][0]).toBe(ranges[i - 1][1] + 1n);
+    });
+});
+
+describe("rpcErrorInfo (src/adapters/chain/readRetry.ts) — diagnosable CLI error line without the RPC URL", () => {
+    const rpcErr = () =>
+        new RpcRequestError({
+            body: { method: "eth_getLogs" },
+            error: { code: -32614, message: "eth_getLogs is limited to a 1,000 range" },
+            url: "https://base-sepolia.example/v2/SECRET_KEY_123",
+        });
+
+    it("returns the JSON-RPC code and short message, never the URL", () => {
+        const info = rpcErrorInfo(rpcErr());
+        expect(info).toEqual({ rpcCode: -32614, rpcMessage: "eth_getLogs is limited to a 1,000 range" });
+        expect(JSON.stringify(info)).not.toContain("SECRET_KEY_123");
+    });
+
+    it("finds the RPC error through an AppError cause", () => {
+        const wrapped = new AppError("CHAIN_RPC_ERROR", "could not read the vault from the RPC", true, { cause: rpcErr() });
+        expect(rpcErrorInfo(wrapped)).toEqual({ rpcCode: -32614, rpcMessage: "eth_getLogs is limited to a 1,000 range" });
+    });
+
+    it("a URL echoed inside the node's message is masked; long messages are truncated", () => {
+        const e = new RpcRequestError({ body: {}, error: { code: -32000, message: `bad https://x.example/k/SECRET ${"a".repeat(300)}` }, url: "https://rpc.invalid" });
+        const info = rpcErrorInfo(e);
+        expect(info?.rpcMessage).not.toContain("SECRET");
+        expect(info?.rpcMessage.length).toBeLessThanOrEqual(160);
+    });
+
+    it("no RPC error in the chain → undefined", () => {
+        expect(rpcErrorInfo(new Error("boom"))).toBeUndefined();
+        expect(rpcErrorInfo("boom")).toBeUndefined();
     });
 });

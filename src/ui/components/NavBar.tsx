@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { chainLabel } from "../wallet/chains";
 import { useWallet } from "../wallet/WalletProvider";
 
-// Shared navigation + wallet button (Architecture 10 라우팅). Audit and Efficiency links arrive with their screens (T-06).
+// Shared navigation + wallet button (Architecture 10 라우팅).
 const LINKS = [
     { href: "/delegate", label: "Delegate" },
     { href: "/dashboard", label: "Dashboard" },
+    { href: "/audit", label: "Audit" },
+    { href: "/efficiency", label: "Efficiency" },
 ] as const;
 
 function WalletButton() {

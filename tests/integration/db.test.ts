@@ -176,6 +176,21 @@ describe("EvidenceRepo", () => {
 });
 
 describe("KilnCallRepo", () => {
+    it("aggregateByFlow: one row per flow for (chain, vault, provider), http_error rows counted, generation ids by time (D-33)", () => {
+        const repo = createKilnCallRepo(db());
+        repo.insert(kilnCall({ callId: "p", flow: "policy_parse", provider: "kiln", totalTokens: 1075, promptTokens: 624, completionTokens: 451, reasoningTokens: 367, costUsd: "0.00017604", latencyMs: 8086, generationId: "gp" }));
+        repo.insert(kilnCall({ callId: "j2", provider: "kiln", reasoningTokens: 10, generationId: "g2", createdAt: "2026-09-28T00:00:02.000Z" }));
+        repo.insert(kilnCall({ callId: "j1", provider: "kiln", reasoningTokens: null, generationId: "g1", createdAt: "2026-09-28T00:00:01.000Z" }));
+        repo.insert(kilnCall({ callId: "j3", provider: "kiln", status: "http_error", httpStatus: 429, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: null, generationId: null, latencyMs: 5 }));
+        repo.insert(kilnCall({ callId: "f", provider: "fake" }));
+        repo.insert(kilnCall({ callId: "o", provider: "kiln", vault: OTHER_VAULT }));
+        expect(repo.aggregateByFlow(31337, VAULT, "kiln")).toEqual([
+            { flow: "policy_parse", kilnCalls: 1, promptTokens: 624, completionTokens: 451, totalTokens: 1075, reasoningTokens: 367, costUsd: "0.00017604", latencyMsSum: 8086, generationIds: ["gp"] },
+            { flow: "intent_judge", kilnCalls: 3, promptTokens: 600, completionTokens: 180, totalTokens: 780, reasoningTokens: 10, costUsd: "0.0004", latencyMsSum: 29, generationIds: ["g1", "g2"] },
+        ]);
+        expect(repo.aggregateByFlow(31337, VAULT, "fake").map((r) => [r.flow, r.kilnCalls, r.reasoningTokens])).toEqual([["intent_judge", 1, null]]);
+        expect(repo.aggregateByFlow(1, VAULT, "kiln")).toEqual([]);
+    });
     it("round-trips usage, generation id and nullable token fields", () => {
         const repo = createKilnCallRepo(db());
         repo.insert(kilnCall());

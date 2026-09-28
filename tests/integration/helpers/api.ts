@@ -1,7 +1,9 @@
 import { createPublicClient, getAddress, http, type Address } from "viem";
 import { hardhat } from "viem/chains";
 import {
+    handleAudit,
     handleConfirmOwnerAction,
+    handleEfficiency,
     handleParsePolicy,
     handlePrepareOwnerAction,
     handleReceipt,
@@ -44,6 +46,9 @@ export function apiFetch(c: AppContainer): typeof fetch {
         if (route === "GET /api/vault/activity") return handleVaultActivity(c);
         const receipt = /^GET \/api\/receipts\/([^/]+)$/.exec(route);
         if (receipt) return handleReceipt(c, decodeURIComponent(receipt[1]));
+        const audit = /^GET \/api\/audit\/([^/]+)$/.exec(route);
+        if (audit) return handleAudit(c, decodeURIComponent(audit[1]));
+        if (route === "GET /api/efficiency") return handleEfficiency(c);
         return new Response("no route", { status: 404 });
     }) as typeof fetch;
 }

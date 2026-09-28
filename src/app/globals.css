@@ -421,3 +421,17 @@ td.num {
     font-style: italic;
     color: var(--muted);
 }
+
+/* ③ Audit: evidence package / event args (T-06) */
+pre {
+    overflow-x: auto;
+    max-height: 360px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    font-size: 12px;
+}
+details > summary {
+    cursor: pointer;
+}

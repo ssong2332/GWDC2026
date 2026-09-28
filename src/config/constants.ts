@@ -59,8 +59,8 @@ export const EVIDENCE_EXPORT_SCHEMA = "agent-spend-evidence-export/v1";
 
 export const SQLITE_USER_VERSION = 1;
 
-/** VaultReader.getLogs chunk size (Architecture 7). */
-export const LOG_BLOCK_CHUNK = 10_000n;
+/** VaultReader.getLogs chunk size (Architecture 7). sepolia.base.org rejects eth_getLogs over 1,000 blocks (-32614). */
+export const LOG_BLOCK_CHUNK = 1_000n;
 
 export const ZERO_HASH: `0x${string}` = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -96,3 +96,11 @@ export const DEFAULT_VERIFY_RPC: Record<number, string> = {
  * Delays: 250, 500, 1000, 2000, 2000 ms = 5.75 s ≤ 8 s. Writes (tx sends) are never retried (duplicate-send risk).
  */
 export const CHAIN_READ_RETRY = { maxAttempts: 6, backoffBaseMs: 250, backoffCapMs: 2000, totalWaitCapMs: 8000 } as const;
+
+/** F-14 ② energy estimate (D-20, OQ #9 accepted): an upper bound, not a measurement — Kiln exposes no energy API. */
+export const ENERGY_ASSUMPTIONS = {
+    cards: { value: 2, unit: "cards", source: "qwen3-32b BF16 weights ≈ 64 GB > 48 GB HBM of one FuriosaAI RNGD card → at least 2 cards (assumed; Kiln's serving setup is not published)" },
+    cardPowerW: { value: 180, unit: "W", source: "FuriosaAI RNGD published TDP 180 W (assumed full draw for the whole request)" },
+    formula: "E_Wh = latency_s × cards × P_card_W ÷ 3600 (upper bound: the whole card power is attributed to this request, batching ignored)",
+    disclaimer: "Estimate (assumed), not measured. Latency is measured by this client; power and card count are assumptions.",
+} as const;

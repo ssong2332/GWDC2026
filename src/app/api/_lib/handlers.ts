@@ -1,13 +1,15 @@
 import type { z } from "zod";
 import { AppError } from "@/core/errors";
+import { buildEfficiencyReport } from "@/core/usecases/buildEfficiencyReport";
 import { buildReceipt } from "@/core/usecases/buildReceipt";
 import { confirmOwnerAction } from "@/core/usecases/confirmOwnerAction";
 import { listActivity } from "@/core/usecases/listActivity";
 import { parsePolicy } from "@/core/usecases/parsePolicy";
 import { prepareOwnerAction } from "@/core/usecases/prepareOwnerAction";
 import { syncChainEvents } from "@/core/usecases/syncChainEvents";
+import { verifyTx } from "@/core/usecases/verifyTx";
 import type { AppContainer } from "@/server/container";
-import { confirmBodySchema, parseBodySchema, prepareBodySchema, requestIdSchema, type KilnUsageDto } from "./dto";
+import { confirmBodySchema, parseBodySchema, prepareBodySchema, requestIdSchema, txHashSchema, type KilnUsageDto } from "./dto";
 import { errorResponse, failure, jsonOk, readJsonBody } from "./http";
 
 // Route Handler bodies (Architecture 9): input validation → use case → DTO (bigint → string) → error mapping.
@@ -102,4 +104,17 @@ export function handleReceipt(c: AppContainer, requestId: string): Promise<Respo
         if (!receipt) throw new AppError("NOT_FOUND", "no executed payment for this request");
         return jsonOk({ receipt });
     });
+}
+
+export function handleAudit(c: AppContainer, txHash: string): Promise<Response> {
+    return guarded(async () => {
+        const hash = validated(txHashSchema, txHash);
+        await syncChainEvents(syncDeps(c));
+        const result = await verifyTx({ ...ctx(c), reader: c.reader, evidence: c.evidence, chainEvents: c.chainEvents }, hash);
+        return jsonOk({ result });
+    });
+}
+
+export function handleEfficiency(c: AppContainer): Promise<Response> {
+    return guarded(async () => jsonOk({ report: await buildEfficiencyReport({ ...ctx(c), kilnCalls: c.kilnCalls, spendRequests: c.spendRequests }) }));
 }

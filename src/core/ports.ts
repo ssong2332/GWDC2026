@@ -1,3 +1,4 @@
+import type { FlowAggregate } from "./domain/efficiency";
 import type { Anchor } from "./domain/evidence";
 import type { Hex, KilnFlow, KilnOutcome, MerchantEntry, PolicyValues, VaultStateSnapshot } from "./domain/types";
 
@@ -124,11 +125,12 @@ export type KilnCallInsert = KilnCallRecord & {
     rawContent: string | null;
 };
 
-// aggregateByFlow (Architecture 7) is left to the efficiency-report task: its FlowAggregate type is not defined yet.
+// aggregateByFlow (Architecture 7, D-33): kiln_calls filtered by (chain_id, vault, provider), GROUP BY flow — F-14.
 // findById also returns the stored raw tool arguments: the policy_set evidence keeps the Kiln candidate verbatim.
 export interface KilnCallRepo {
     insert(r: KilnCallInsert): void;
     findById(id: string): (KilnCallRecord & { rawArguments: string | null }) | null;
+    aggregateByFlow(chainId: number, vault: Hex, provider: "kiln" | "fake"): FlowAggregate[];
 }
 
 export type SpendRequestRow = {

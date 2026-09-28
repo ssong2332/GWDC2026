@@ -5,6 +5,7 @@ import type Database from "better-sqlite3";
 import { createPublicClient, createTestClient, createWalletClient, getAddress, http, nonceManager, type Account, type Address, type Chain } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { NETWORKS, viemChain, type NetworkName } from "@/adapters/chain/networks";
+import { rpcErrorInfo } from "@/adapters/chain/readRetry";
 import { createChainEventRepo } from "@/adapters/db/chainEventRepo";
 import { createEvidenceRepo } from "@/adapters/db/evidenceRepo";
 import { createKilnCallRepo } from "@/adapters/db/kilnCallRepo";
@@ -125,7 +126,7 @@ function safeMessage(err: unknown): string {
 export function runCli(main: () => Promise<void>): void {
     main().catch((err: unknown) => {
         const code = err instanceof AppError ? err.code : "INTERNAL";
-        logLine("error", "cli.failed", { code, message: safeMessage(err) });
+        logLine("error", "cli.failed", { code, message: safeMessage(err), ...rpcErrorInfo(err) });
         process.exitCode = 1;
     });
 }

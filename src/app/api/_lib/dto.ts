@@ -4,6 +4,8 @@ import { API_LIMITS } from "@/config/constants";
 import type { Hex, PolicyCandidate, VaultStateSnapshot } from "@/core/domain/types";
 import type { ActivityItem } from "@/core/usecases/listActivity";
 import type { Receipt } from "@/core/usecases/buildReceipt";
+import type { EfficiencyReport } from "@/core/domain/efficiency";
+import type { AuditResult } from "@/core/usecases/verifyTx";
 
 // HTTP DTOs (Architecture 9): request schemas for external input, and response shapes with bigint → decimal string.
 // The UI imports the response types only (type imports — nothing from here is bundled into the browser).
@@ -67,6 +69,7 @@ export const prepareBodySchema = z.discriminatedUnion("kind", [
 export const confirmBodySchema = z.object({ evidenceId: z.string().min(1).max(API_LIMITS.idMax), txHash: bytes32 });
 
 export const requestIdSchema = bytes32;
+export const txHashSchema = bytes32;
 
 export type KilnUsageDto = {
     promptTokens: number;
@@ -103,3 +106,7 @@ export type ActivityResponse = { items: ActivityItemDto[] };
 
 export type ReceiptDto = Jsonify<Receipt>;
 export type ReceiptResponse = { receipt: ReceiptDto };
+
+/** GET /api/audit/[txHash] — event args with bigint → decimal string. */
+export type AuditResponse = { result: Jsonify<AuditResult> };
+export type EfficiencyResponse = { report: EfficiencyReport };
