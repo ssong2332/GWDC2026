@@ -1,0 +1,990 @@
+{
+  "schema": "agent-spend-evidence-export/v1",
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4",
+  "token": "0x074Aa6a6EE96922553340582d9Ebd08f489E1900",
+  "deployBlock": "47419193",
+  "exportedAt": "2026-09-28T14:48:15.491Z",
+  "records": [
+    {
+      "evidenceId": "5d36307f-126c-499c-b401-fe811b4aceaa",
+      "kind": "policy_set",
+      "evidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+      "package": {
+        "candidate": {
+          "allowed_merchant_ids": [
+            "daiso",
+            "coupang"
+          ],
+          "approval_threshold_krw": 50000,
+          "expires_on": null,
+          "purpose": "Event expenses",
+          "total_budget_krw": 200000,
+          "unrecognized_merchants": []
+        },
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:44:42.775Z",
+        "delegationText": "행사비 20만 원을 맡길게, 다이소·쿠팡만, 건당 5만 원 넘으면 물어봐",
+        "feeBps": 100,
+        "final": {
+          "approvalThreshold": "50000",
+          "budget": "200000",
+          "expiresAt": 1791212399,
+          "expiresAtSource": "owner",
+          "maxPerDay": 20,
+          "maxPerMinute": 3,
+          "merchants": [
+            {
+              "address": "0x000000000000000000000000000000000000da15",
+              "displayName": "Daiso",
+              "id": "daiso"
+            },
+            {
+              "address": "0x000000000000000000000000000000000000C0A9",
+              "displayName": "Coupang",
+              "id": "coupang"
+            }
+          ],
+          "purpose": "Event expenses"
+        },
+        "kiln": {
+          "callId": "51b17485-7b08-4d09-93de-70b555316a97",
+          "finishReason": "tool_calls",
+          "generationId": "d8b8c46c-30e2-412f-a46a-784753f165c5",
+          "model": "qwen3-32b",
+          "provider": "kiln",
+          "rawArguments": "{\"allowed_merchant_ids\": [\"daiso\", \"coupang\"], \"approval_threshold_krw\": 50000, \"expires_on\": null, \"purpose\": \"Event expenses\", \"total_budget_krw\": 200000, \"unrecognized_merchants\": []}",
+          "usage": {
+            "completionTokens": 451,
+            "costUsd": "0.00017604",
+            "promptTokens": 624,
+            "reasoningTokens": 367,
+            "totalTokens": 1075
+          }
+        },
+        "kind": "policy_set",
+        "owner": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+        "ownerEdits": [
+          "expiresAt"
+        ],
+        "schema": "agent-spend-evidence/v1",
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0x920cd8f18f675a69773922315f1c865fa6dfbfba2645bf0fe9eb13fa052d3caf",
+        "blockNumber": "47419199",
+        "logIndex": 5,
+        "event": "PolicySet",
+        "args": {
+          "policyVersion": "1",
+          "by": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+          "budget": "200000",
+          "approvalThreshold": "50000",
+          "expiresAt": "1791212399",
+          "maxPerMinute": 3,
+          "maxPerDay": 20,
+          "merchants": [
+            "0x000000000000000000000000000000000000da15",
+            "0x000000000000000000000000000000000000C0A9"
+          ],
+          "evidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4"
+        }
+      }
+    },
+    {
+      "evidenceId": "0b2d28a3-bf48-48d7-ac4c-9437a14b05d6",
+      "kind": "spend_request",
+      "evidenceHash": "0xb1d10a6a1e03e3ecb1b8e2a01c9058e38d642f5d34be7d2a50e15a2328dbfcfc",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:44:54.388Z",
+        "judgment": {
+          "kiln": {
+            "callId": "d373d666-8b35-4bbb-b97f-e538e5719afb",
+            "finishReason": "tool_calls",
+            "generationId": "7d6f6545-af95-498a-b3a9-5145fafcb36b",
+            "model": "qwen3-32b",
+            "provider": "kiln",
+            "rawArguments": "{\"fits_purpose\": true, \"reason\": \"Balloons and table decorations directly serve event expenses for a welcome party.\"}",
+            "usage": {
+              "completionTokens": 309,
+              "costUsd": "0.00011452",
+              "promptTokens": 352,
+              "reasoningTokens": 262,
+              "totalTokens": 661
+            }
+          },
+          "reason": "Balloons and table decorations directly serve event expenses for a welcome party.",
+          "status": "match"
+        },
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": "execute",
+          "reason": null,
+          "snapshot": {
+            "blockNumber": "47419200",
+            "blockTimestamp": 1790606688,
+            "dayCount": 0,
+            "minuteCount": 0,
+            "paused": false,
+            "remaining": "200000"
+          },
+          "verdict": "pass"
+        },
+        "request": {
+          "amount": "30000",
+          "fee": "300",
+          "itemDescription": "Balloons and table decorations for the welcome party",
+          "merchantAddress": "0x000000000000000000000000000000000000da15",
+          "merchantId": "daiso"
+        },
+        "requestId": "0x699217582afbd2b546c505d342b183e47e38aa7947e79dc1bfc465c876be43a9",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": false
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0xb10d84152934531c6cfd8f2f02c69cb34fa20f2abe832e5f659de6e56327b636",
+        "blockNumber": "47419205",
+        "logIndex": 17,
+        "event": "SpendExecuted",
+        "args": {
+          "requestId": "0x699217582afbd2b546c505d342b183e47e38aa7947e79dc1bfc465c876be43a9",
+          "merchant": "0x000000000000000000000000000000000000da15",
+          "amount": "30000",
+          "fee": "300",
+          "policyVersion": "1",
+          "viaApproval": false,
+          "evidenceHash": "0xb1d10a6a1e03e3ecb1b8e2a01c9058e38d642f5d34be7d2a50e15a2328dbfcfc"
+        }
+      }
+    },
+    {
+      "evidenceId": "53cf9c11-c645-480c-b4cd-a086f22a355a",
+      "kind": "spend_request",
+      "evidenceHash": "0x7c08ced42de324d35b185a107ae2f9bb100ebe1c61b10b1905310943a94a8b4d",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:45:00.254Z",
+        "judgment": null,
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": null,
+          "reason": 6,
+          "snapshot": {
+            "blockNumber": "47419205",
+            "blockTimestamp": 1790606698,
+            "dayCount": 1,
+            "minuteCount": 1,
+            "paused": false,
+            "remaining": "169700"
+          },
+          "verdict": "block"
+        },
+        "request": {
+          "amount": "20000",
+          "fee": "200",
+          "itemDescription": "Snacks",
+          "merchantAddress": "0x0000000000000000000000000000000000009a4e",
+          "merchantId": "gmarket"
+        },
+        "requestId": "0x739385e3f529f42cecdfad1ffdc22cf9235912dddccb09393310bd33e0c7b12b",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": true
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0x50d6e9ddcb84067bf62d497a753033b7d6bc5a8f605b6a3c13f15bc057dc340c",
+        "blockNumber": "47419208",
+        "logIndex": 0,
+        "event": "SpendBlocked",
+        "args": {
+          "requestId": "0x739385e3f529f42cecdfad1ffdc22cf9235912dddccb09393310bd33e0c7b12b",
+          "merchant": "0x0000000000000000000000000000000000009a4e",
+          "amount": "20000",
+          "fee": "200",
+          "reason": 6,
+          "policyVersion": "1",
+          "evidenceHash": "0x7c08ced42de324d35b185a107ae2f9bb100ebe1c61b10b1905310943a94a8b4d"
+        }
+      }
+    },
+    {
+      "evidenceId": "013359e1-4567-4112-8d73-8e555503b7b6",
+      "kind": "spend_request",
+      "evidenceHash": "0x26f548e759290fd3be767b873b5c4982d7351374265301896a16b6614996bc1a",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:45:11.085Z",
+        "judgment": {
+          "kiln": {
+            "callId": "cddc808f-3e22-4e06-8dab-99e1e499aac7",
+            "finishReason": "tool_calls",
+            "generationId": "82733dd7-22d2-42c6-955d-1e2d98ee8eb7",
+            "model": "qwen3-32b",
+            "provider": "kiln",
+            "rawArguments": "{\"fits_purpose\": true, \"reason\": \"Portable speaker is a reasonable event expense.\"}",
+            "usage": {
+              "completionTokens": 260,
+              "costUsd": "0.0001004",
+              "promptTokens": 347,
+              "reasoningTokens": 220,
+              "totalTokens": 607
+            }
+          },
+          "reason": "Portable speaker is a reasonable event expense.",
+          "status": "match"
+        },
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": "pending",
+          "reason": null,
+          "snapshot": {
+            "blockNumber": "47419208",
+            "blockTimestamp": 1790606704,
+            "dayCount": 2,
+            "minuteCount": 1,
+            "paused": false,
+            "remaining": "169700"
+          },
+          "verdict": "pass"
+        },
+        "request": {
+          "amount": "60000",
+          "fee": "600",
+          "itemDescription": "Portable speaker for the event",
+          "merchantAddress": "0x000000000000000000000000000000000000C0A9",
+          "merchantId": "coupang"
+        },
+        "requestId": "0x0daa9a2fa69a817eeb6cb04756ff2cef07365a38c5168fbcdbb3c632c8493526",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": false
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0x1d593749a7d248d8efe52c75284880da44c248c6df81582a3c933a000539b17a",
+        "blockNumber": "47419213",
+        "logIndex": 25,
+        "event": "SpendPending",
+        "args": {
+          "requestId": "0x0daa9a2fa69a817eeb6cb04756ff2cef07365a38c5168fbcdbb3c632c8493526",
+          "merchant": "0x000000000000000000000000000000000000C0A9",
+          "amount": "60000",
+          "fee": "600",
+          "flags": 1,
+          "policyVersion": "1",
+          "evidenceHash": "0x26f548e759290fd3be767b873b5c4982d7351374265301896a16b6614996bc1a"
+        }
+      }
+    },
+    {
+      "evidenceId": "e0898127-791b-4286-accc-494c0b5e40a3",
+      "kind": "approval",
+      "evidenceHash": "0x204effb02de3b60b481988a602fa2f307f95387123cc29f01e085841d320658b",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:45:15.185Z",
+        "kind": "approval",
+        "owner": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+        "requestEvidenceHash": "0x26f548e759290fd3be767b873b5c4982d7351374265301896a16b6614996bc1a",
+        "requestId": "0x0daa9a2fa69a817eeb6cb04756ff2cef07365a38c5168fbcdbb3c632c8493526",
+        "schema": "agent-spend-evidence/v1",
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0x101ee3f86a1bbf7a7c049a71479483107f6572705f312e76ca418d0a1d7d907f",
+        "blockNumber": "47419215",
+        "logIndex": 18,
+        "event": "Approved",
+        "args": {
+          "requestId": "0x0daa9a2fa69a817eeb6cb04756ff2cef07365a38c5168fbcdbb3c632c8493526",
+          "approver": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+          "evidenceHash": "0x204effb02de3b60b481988a602fa2f307f95387123cc29f01e085841d320658b"
+        }
+      }
+    },
+    {
+      "evidenceId": "6b904c46-9ce1-41dd-8293-71c931646996",
+      "kind": "spend_request",
+      "evidenceHash": "0x0a6ff07f13531e372581679e49874bf94937bf726a086c27ea134f539fcef8f5",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:45:24.806Z",
+        "judgment": {
+          "kiln": {
+            "callId": "1f2fd7c4-00b8-42b6-95ff-6b16c5f0413e",
+            "finishReason": "tool_calls",
+            "generationId": "7d816022-33e1-4eea-aafe-6acefb134eb5",
+            "model": "qwen3-32b",
+            "provider": "kiln",
+            "rawArguments": "{\"fits_purpose\": false, \"reason\": \"Personal gaming mouse is not an event expense item.\"}",
+            "usage": {
+              "completionTokens": 254,
+              "costUsd": "0.00008596",
+              "promptTokens": 345,
+              "reasoningTokens": 212,
+              "totalTokens": 599
+            }
+          },
+          "reason": "Personal gaming mouse is not an event expense item.",
+          "status": "mismatch"
+        },
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": "execute",
+          "reason": null,
+          "snapshot": {
+            "blockNumber": "47419215",
+            "blockTimestamp": 1790606718,
+            "dayCount": 3,
+            "minuteCount": 2,
+            "paused": false,
+            "remaining": "109100"
+          },
+          "verdict": "pass"
+        },
+        "request": {
+          "amount": "15000",
+          "fee": "150",
+          "itemDescription": "Personal gaming mouse",
+          "merchantAddress": "0x000000000000000000000000000000000000da15",
+          "merchantId": "daiso"
+        },
+        "requestId": "0x35f42c26de1c33fdabed31a554fd64fc02c394f08af78f4e41d95de15e8543c3",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": true
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0x91a2f03e142140b68f81ed61c65ceea80a1fe0b0efbed89a58afed942e803603",
+        "blockNumber": "47419220",
+        "logIndex": 87,
+        "event": "SpendPending",
+        "args": {
+          "requestId": "0x35f42c26de1c33fdabed31a554fd64fc02c394f08af78f4e41d95de15e8543c3",
+          "merchant": "0x000000000000000000000000000000000000da15",
+          "amount": "15000",
+          "fee": "150",
+          "flags": 2,
+          "policyVersion": "1",
+          "evidenceHash": "0x0a6ff07f13531e372581679e49874bf94937bf726a086c27ea134f539fcef8f5"
+        }
+      }
+    },
+    {
+      "evidenceId": "88c14aa4-5e57-4e7d-bf9f-eb95f23f7999",
+      "kind": "spend_request",
+      "evidenceHash": "0xd9350e65ca0e87b79ca3d518d404400cd525b3c67ca6aff7bad3ef864f387a58",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:46:03.002Z",
+        "judgment": null,
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": null,
+          "reason": 7,
+          "snapshot": {
+            "blockNumber": "47419237",
+            "blockTimestamp": 1790606762,
+            "dayCount": 4,
+            "minuteCount": 3,
+            "paused": false,
+            "remaining": "93950"
+          },
+          "verdict": "block"
+        },
+        "request": {
+          "amount": "93950",
+          "fee": "939",
+          "itemDescription": "Banner printing",
+          "merchantAddress": "0x000000000000000000000000000000000000C0A9",
+          "merchantId": "coupang"
+        },
+        "requestId": "0x9a71dfa6eb2444896ca1365cd98fb90ffb301b3fb1560c9845d4f7d22f4141ab",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": true
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0xfe994667e3f0145cb9d02e5d77fcca37d1d30b1300c69a67ab64eeeee58b15df",
+        "blockNumber": "47419239",
+        "logIndex": 2,
+        "event": "SpendBlocked",
+        "args": {
+          "requestId": "0x9a71dfa6eb2444896ca1365cd98fb90ffb301b3fb1560c9845d4f7d22f4141ab",
+          "merchant": "0x000000000000000000000000000000000000C0A9",
+          "amount": "93950",
+          "fee": "939",
+          "reason": 7,
+          "policyVersion": "1",
+          "evidenceHash": "0xd9350e65ca0e87b79ca3d518d404400cd525b3c67ca6aff7bad3ef864f387a58"
+        }
+      }
+    },
+    {
+      "evidenceId": "9ad5ac8e-3ba8-405b-a62a-22da527dfb43",
+      "kind": "spend_request",
+      "evidenceHash": "0x4d21b397617ca2a0d6aebb44706a8d734aa471a4cd721f01b77d22d7bf086722",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:47:07.853Z",
+        "judgment": {
+          "kiln": {
+            "callId": "2fa1ae42-2c05-4de9-b6f1-dda9f64a9998",
+            "finishReason": "tool_calls",
+            "generationId": "bdb3de48-7bde-4d45-b1c6-639b420a6170",
+            "model": "qwen3-32b",
+            "provider": "kiln",
+            "rawArguments": "{\"fits_purpose\": true, \"reason\": \"Paper cups are commonly used for event expenses.\"}",
+            "usage": {
+              "completionTokens": 242,
+              "costUsd": "0.00008204",
+              "promptTokens": 343,
+              "reasoningTokens": 201,
+              "totalTokens": 585
+            }
+          },
+          "reason": "Paper cups are commonly used for event expenses.",
+          "status": "match"
+        },
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": "execute",
+          "reason": null,
+          "snapshot": {
+            "blockNumber": "47419267",
+            "blockTimestamp": 1790606822,
+            "dayCount": 5,
+            "minuteCount": 1,
+            "paused": false,
+            "remaining": "93950"
+          },
+          "verdict": "pass"
+        },
+        "request": {
+          "amount": "1000",
+          "fee": "10",
+          "itemDescription": "Paper cups",
+          "merchantAddress": "0x000000000000000000000000000000000000C0A9",
+          "merchantId": "coupang"
+        },
+        "requestId": "0xb961c3ab410cb2a21c290e0ee3cacff9a1bdd917512688b2606bb0ac90ab6430",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": false
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0xbe38fbeb11f771d51d56207e3c21d86b8ed07194af12cd2f20479599f25a7aff",
+        "blockNumber": "47419271",
+        "logIndex": 45,
+        "event": "SpendExecuted",
+        "args": {
+          "requestId": "0xb961c3ab410cb2a21c290e0ee3cacff9a1bdd917512688b2606bb0ac90ab6430",
+          "merchant": "0x000000000000000000000000000000000000C0A9",
+          "amount": "1000",
+          "fee": "10",
+          "policyVersion": "1",
+          "viaApproval": false,
+          "evidenceHash": "0x4d21b397617ca2a0d6aebb44706a8d734aa471a4cd721f01b77d22d7bf086722"
+        }
+      }
+    },
+    {
+      "evidenceId": "c5b0d8ac-da40-42ea-86b1-b9790ba4ab4a",
+      "kind": "spend_request",
+      "evidenceHash": "0x457ea0642981fc06690ded6ba6499f41df34d60582db2a1c9ad9083a84e626fd",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:47:08.037Z",
+        "judgment": {
+          "kiln": {
+            "callId": "243c3a53-b8d2-452e-b649-d24d38104328",
+            "finishReason": "tool_calls",
+            "generationId": "f0da82e2-7f0e-4c2a-b404-18303518f137",
+            "model": "qwen3-32b",
+            "provider": "kiln",
+            "rawArguments": "{\"fits_purpose\": true, \"reason\": \"Paper cups are commonly used for event expenses.\"}",
+            "usage": {
+              "completionTokens": 231,
+              "costUsd": "0.00007936",
+              "promptTokens": 343,
+              "reasoningTokens": 190,
+              "totalTokens": 574
+            }
+          },
+          "reason": "Paper cups are commonly used for event expenses.",
+          "status": "match"
+        },
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": "execute",
+          "reason": null,
+          "snapshot": {
+            "blockNumber": "47419267",
+            "blockTimestamp": 1790606822,
+            "dayCount": 5,
+            "minuteCount": 1,
+            "paused": false,
+            "remaining": "93950"
+          },
+          "verdict": "pass"
+        },
+        "request": {
+          "amount": "1000",
+          "fee": "10",
+          "itemDescription": "Paper cups",
+          "merchantAddress": "0x000000000000000000000000000000000000C0A9",
+          "merchantId": "coupang"
+        },
+        "requestId": "0x70e05fba94ec8e807b27b974c940f91355453f3f481d9a7412bdc99e5e91ec34",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": false
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0x4c88460b95c4442a3d8c7d73a058ea2d73872d31927b8c500539ca2fa56bc274",
+        "blockNumber": "47419271",
+        "logIndex": 48,
+        "event": "SpendExecuted",
+        "args": {
+          "requestId": "0x70e05fba94ec8e807b27b974c940f91355453f3f481d9a7412bdc99e5e91ec34",
+          "merchant": "0x000000000000000000000000000000000000C0A9",
+          "amount": "1000",
+          "fee": "10",
+          "policyVersion": "1",
+          "viaApproval": false,
+          "evidenceHash": "0x457ea0642981fc06690ded6ba6499f41df34d60582db2a1c9ad9083a84e626fd"
+        }
+      }
+    },
+    {
+      "evidenceId": "d389c5e8-20ca-4343-bd10-fb1baad0a40e",
+      "kind": "spend_request",
+      "evidenceHash": "0x6beadc95b1bdf2c6e21b95532543bd187e05d394a71b93471308709c366c60a4",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:47:08.517Z",
+        "judgment": {
+          "kiln": {
+            "callId": "8646e94e-d57a-4420-a4a8-30d1582d9b0e",
+            "finishReason": "tool_calls",
+            "generationId": "71d52720-cdab-482c-8010-a37b87b11b4a",
+            "model": "qwen3-32b",
+            "provider": "kiln",
+            "rawArguments": "{\"fits_purpose\": true, \"reason\": \"Paper cups are a common event expense item for gatherings or parties.\"}",
+            "usage": {
+              "completionTokens": 225,
+              "costUsd": "0.00007676",
+              "promptTokens": 343,
+              "reasoningTokens": 180,
+              "totalTokens": 568
+            }
+          },
+          "reason": "Paper cups are a common event expense item for gatherings or parties.",
+          "status": "match"
+        },
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": "execute",
+          "reason": null,
+          "snapshot": {
+            "blockNumber": "47419267",
+            "blockTimestamp": 1790606822,
+            "dayCount": 5,
+            "minuteCount": 1,
+            "paused": false,
+            "remaining": "93950"
+          },
+          "verdict": "pass"
+        },
+        "request": {
+          "amount": "1000",
+          "fee": "10",
+          "itemDescription": "Paper cups",
+          "merchantAddress": "0x000000000000000000000000000000000000C0A9",
+          "merchantId": "coupang"
+        },
+        "requestId": "0x2a6eadfa08556a24817c2c2379b533d1d3f8421fa98eedce36c63ef3b9386be1",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": false
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0xfbefd1a7c934dbe368879311b5008b954b8b8ee92ba5b1c9b6bfc6e16b3d4a41",
+        "blockNumber": "47419272",
+        "logIndex": 11,
+        "event": "SpendExecuted",
+        "args": {
+          "requestId": "0x2a6eadfa08556a24817c2c2379b533d1d3f8421fa98eedce36c63ef3b9386be1",
+          "merchant": "0x000000000000000000000000000000000000C0A9",
+          "amount": "1000",
+          "fee": "10",
+          "policyVersion": "1",
+          "viaApproval": false,
+          "evidenceHash": "0x6beadc95b1bdf2c6e21b95532543bd187e05d394a71b93471308709c366c60a4"
+        }
+      }
+    },
+    {
+      "evidenceId": "031c04d4-049e-4f9a-95f4-d17e815dee8f",
+      "kind": "spend_request",
+      "evidenceHash": "0x6ff8f59f9f45097efa1cc51d22a9135df8f4d5a04be4463908c83cd7e4c7c9dd",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:47:09.105Z",
+        "judgment": {
+          "kiln": {
+            "callId": "083c0362-83df-4f49-b382-2b93dd781c6e",
+            "finishReason": "tool_calls",
+            "generationId": "d21539c4-68fd-405b-aee7-9198c98924b8",
+            "model": "qwen3-32b",
+            "provider": "kiln",
+            "rawArguments": "{\"fits_purpose\": true, \"reason\": \"Paper cups are a common event expense item.\"}",
+            "usage": {
+              "completionTokens": 273,
+              "costUsd": "0.0000902",
+              "promptTokens": 343,
+              "reasoningTokens": 232,
+              "totalTokens": 616
+            }
+          },
+          "reason": "Paper cups are a common event expense item.",
+          "status": "match"
+        },
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": "execute",
+          "reason": null,
+          "snapshot": {
+            "blockNumber": "47419267",
+            "blockTimestamp": 1790606822,
+            "dayCount": 5,
+            "minuteCount": 1,
+            "paused": false,
+            "remaining": "93950"
+          },
+          "verdict": "pass"
+        },
+        "request": {
+          "amount": "1000",
+          "fee": "10",
+          "itemDescription": "Paper cups",
+          "merchantAddress": "0x000000000000000000000000000000000000C0A9",
+          "merchantId": "coupang"
+        },
+        "requestId": "0xad9e13094a06fbda835aafdb8db70e221c5de921e6c138e954d340dc7d5b7668",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": false
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0x76aba0eaa63d0e5b254a894ba9dcdbe9d9da2ab8421a9324a6f6c817038d1a1b",
+        "blockNumber": "47419272",
+        "logIndex": 34,
+        "event": "SpendBlocked",
+        "args": {
+          "requestId": "0xad9e13094a06fbda835aafdb8db70e221c5de921e6c138e954d340dc7d5b7668",
+          "merchant": "0x000000000000000000000000000000000000C0A9",
+          "amount": "1000",
+          "fee": "10",
+          "reason": 4,
+          "policyVersion": "1",
+          "evidenceHash": "0x6ff8f59f9f45097efa1cc51d22a9135df8f4d5a04be4463908c83cd7e4c7c9dd"
+        }
+      }
+    },
+    {
+      "evidenceId": "2e94f4de-8485-4f42-b20f-67deefa06b6b",
+      "kind": "pause",
+      "evidenceHash": "0xf48f78ff2785a6c93ca200a17e232cf1b72efc023e4fb4fa328949be5f411ac2",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:48:01.303Z",
+        "kind": "pause",
+        "note": "E2E pause",
+        "owner": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+        "schema": "agent-spend-evidence/v1",
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0xed174525287f2b995097c80f088a3f03223e51c81070e71c353d63330bfc8774",
+        "blockNumber": "47419298",
+        "logIndex": 39,
+        "event": "VaultPaused",
+        "args": {
+          "by": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+          "evidenceHash": "0xf48f78ff2785a6c93ca200a17e232cf1b72efc023e4fb4fa328949be5f411ac2"
+        }
+      }
+    },
+    {
+      "evidenceId": "1a93c832-794a-47e4-82b0-1481783183ac",
+      "kind": "spend_request",
+      "evidenceHash": "0x7f29fe0132adbe1685f99086c1470b4ba11ecaf2117201a4a098b5d27e719d2d",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:48:06.748Z",
+        "judgment": null,
+        "kind": "spend_request",
+        "policyEvidenceHash": "0x1e479e87c2ea423bfb5c7e7f31650de02f47b2a9933a54c002134d437b0d68f4",
+        "policyVersion": "1",
+        "precheck": {
+          "expected": null,
+          "reason": 1,
+          "snapshot": {
+            "blockNumber": "47419299",
+            "blockTimestamp": 1790606886,
+            "dayCount": 8,
+            "minuteCount": 3,
+            "paused": true,
+            "remaining": "90920"
+          },
+          "verdict": "block"
+        },
+        "request": {
+          "amount": "5000",
+          "fee": "50",
+          "itemDescription": "Tape",
+          "merchantAddress": "0x000000000000000000000000000000000000da15",
+          "merchantId": "daiso"
+        },
+        "requestId": "0xee9ba14a62cd7684e8514464cdf3c5f9e40f1559e16b09c4fe6d09211d0cbf48",
+        "schema": "agent-spend-evidence/v1",
+        "submission": {
+          "agentReviewRequest": true
+        },
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0x0672932208dd01532bdaa5bee95b4882e9931dd47de5bd6e65c042f0abc78922",
+        "blockNumber": "47419301",
+        "logIndex": 7,
+        "event": "SpendBlocked",
+        "args": {
+          "requestId": "0xee9ba14a62cd7684e8514464cdf3c5f9e40f1559e16b09c4fe6d09211d0cbf48",
+          "merchant": "0x000000000000000000000000000000000000da15",
+          "amount": "5000",
+          "fee": "50",
+          "reason": 1,
+          "policyVersion": "1",
+          "evidenceHash": "0x7f29fe0132adbe1685f99086c1470b4ba11ecaf2117201a4a098b5d27e719d2d"
+        }
+      }
+    },
+    {
+      "evidenceId": "a2175414-4932-47e7-a327-5e67d47aebbe",
+      "kind": "unpause",
+      "evidenceHash": "0xe75f90683568098c8fc6102e9eccece7f1abf09a7d62b943b7e1ebad64acbd41",
+      "package": {
+        "chainId": 84532,
+        "createdAt": "2026-09-28T14:48:11.097Z",
+        "kind": "unpause",
+        "note": "E2E resume",
+        "owner": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+        "schema": "agent-spend-evidence/v1",
+        "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4"
+      },
+      "anchor": {
+        "txHash": "0x975b21728f112a2e2d07bb036eb7e17fe7dca35d5c701b468650252263372755",
+        "blockNumber": "47419303",
+        "logIndex": 11,
+        "event": "VaultUnpaused",
+        "args": {
+          "by": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+          "evidenceHash": "0xe75f90683568098c8fc6102e9eccece7f1abf09a7d62b943b7e1ebad64acbd41"
+        }
+      }
+    }
+  ],
+  "kilnCalls": [
+    {
+      "callId": "51b17485-7b08-4d09-93de-70b555316a97",
+      "flow": "policy_parse",
+      "provider": "kiln",
+      "model": "qwen3-32b",
+      "httpStatus": 200,
+      "finishReason": "tool_calls",
+      "attempts": 1,
+      "latencyMs": 8086,
+      "promptTokens": 624,
+      "completionTokens": 451,
+      "reasoningTokens": 367,
+      "totalTokens": 1075,
+      "cachedTokens": 4,
+      "costUsd": "0.00017604",
+      "generationId": "d8b8c46c-30e2-412f-a46a-784753f165c5",
+      "thinkingMode": "default",
+      "createdAt": "2026-09-28T14:44:34.682Z"
+    },
+    {
+      "callId": "d373d666-8b35-4bbb-b97f-e538e5719afb",
+      "flow": "intent_judge",
+      "provider": "kiln",
+      "model": "qwen3-32b",
+      "httpStatus": 200,
+      "finishReason": "tool_calls",
+      "attempts": 1,
+      "latencyMs": 5552,
+      "promptTokens": 352,
+      "completionTokens": 309,
+      "reasoningTokens": 262,
+      "totalTokens": 661,
+      "cachedTokens": 4,
+      "costUsd": "0.00011452",
+      "generationId": "7d6f6545-af95-498a-b3a9-5145fafcb36b",
+      "thinkingMode": "default",
+      "createdAt": "2026-09-28T14:44:48.835Z"
+    },
+    {
+      "callId": "cddc808f-3e22-4e06-8dab-99e1e499aac7",
+      "flow": "intent_judge",
+      "provider": "kiln",
+      "model": "qwen3-32b",
+      "httpStatus": 200,
+      "finishReason": "tool_calls",
+      "attempts": 1,
+      "latencyMs": 4544,
+      "promptTokens": 347,
+      "completionTokens": 260,
+      "reasoningTokens": 220,
+      "totalTokens": 607,
+      "cachedTokens": 4,
+      "costUsd": "0.0001004",
+      "generationId": "82733dd7-22d2-42c6-955d-1e2d98ee8eb7",
+      "thinkingMode": "default",
+      "createdAt": "2026-09-28T14:45:06.540Z"
+    },
+    {
+      "callId": "1f2fd7c4-00b8-42b6-95ff-6b16c5f0413e",
+      "flow": "intent_judge",
+      "provider": "kiln",
+      "model": "qwen3-32b",
+      "httpStatus": 200,
+      "finishReason": "tool_calls",
+      "attempts": 1,
+      "latencyMs": 4788,
+      "promptTokens": 345,
+      "completionTokens": 254,
+      "reasoningTokens": 212,
+      "totalTokens": 599,
+      "cachedTokens": 319,
+      "costUsd": "0.00008596",
+      "generationId": "7d816022-33e1-4eea-aafe-6acefb134eb5",
+      "thinkingMode": "default",
+      "createdAt": "2026-09-28T14:45:20.013Z"
+    },
+    {
+      "callId": "2fa1ae42-2c05-4de9-b6f1-dda9f64a9998",
+      "flow": "intent_judge",
+      "provider": "kiln",
+      "model": "qwen3-32b",
+      "httpStatus": 200,
+      "finishReason": "tool_calls",
+      "attempts": 1,
+      "latencyMs": 4315,
+      "promptTokens": 343,
+      "completionTokens": 242,
+      "reasoningTokens": 201,
+      "totalTokens": 585,
+      "cachedTokens": 329,
+      "costUsd": "0.00008204",
+      "generationId": "bdb3de48-7bde-4d45-b1c6-639b420a6170",
+      "thinkingMode": "default",
+      "createdAt": "2026-09-28T14:47:03.538Z"
+    },
+    {
+      "callId": "243c3a53-b8d2-452e-b649-d24d38104328",
+      "flow": "intent_judge",
+      "provider": "kiln",
+      "model": "qwen3-32b",
+      "httpStatus": 200,
+      "finishReason": "tool_calls",
+      "attempts": 1,
+      "latencyMs": 4498,
+      "promptTokens": 343,
+      "completionTokens": 231,
+      "reasoningTokens": 190,
+      "totalTokens": 574,
+      "cachedTokens": 319,
+      "costUsd": "0.00007936",
+      "generationId": "f0da82e2-7f0e-4c2a-b404-18303518f137",
+      "thinkingMode": "default",
+      "createdAt": "2026-09-28T14:47:03.538Z"
+    },
+    {
+      "callId": "8646e94e-d57a-4420-a4a8-30d1582d9b0e",
+      "flow": "intent_judge",
+      "provider": "kiln",
+      "model": "qwen3-32b",
+      "httpStatus": 200,
+      "finishReason": "tool_calls",
+      "attempts": 1,
+      "latencyMs": 4978,
+      "promptTokens": 343,
+      "completionTokens": 225,
+      "reasoningTokens": 180,
+      "totalTokens": 568,
+      "cachedTokens": 342,
+      "costUsd": "0.00007676",
+      "generationId": "71d52720-cdab-482c-8010-a37b87b11b4a",
+      "thinkingMode": "default",
+      "createdAt": "2026-09-28T14:47:03.538Z"
+    },
+    {
+      "callId": "083c0362-83df-4f49-b382-2b93dd781c6e",
+      "flow": "intent_judge",
+      "provider": "kiln",
+      "model": "qwen3-32b",
+      "httpStatus": 200,
+      "finishReason": "tool_calls",
+      "attempts": 1,
+      "latencyMs": 5566,
+      "promptTokens": 343,
+      "completionTokens": 273,
+      "reasoningTokens": 232,
+      "totalTokens": 616,
+      "cachedTokens": 342,
+      "costUsd": "0.0000902",
+      "generationId": "d21539c4-68fd-405b-aee7-9198c98924b8",
+      "thinkingMode": "default",
+      "createdAt": "2026-09-28T14:47:03.538Z"
+    }
+  ]
+}

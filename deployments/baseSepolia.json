@@ -1,0 +1,12 @@
+{
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "token": "0x074Aa6a6EE96922553340582d9Ebd08f489E1900",
+  "vault": "0x639d1c2D7b739B2808E92fbdeEEd9Ea5083519f4",
+  "owner": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+  "agent": "0xE0e93167c04a96547E20A9e69F6Ac66578cfA3AA",
+  "feeRecipient": "0xD54EEE304C705659Ddf147fcdcFf2CBDCd2f19cd",
+  "feeBps": 100,
+  "vaultMint": "1000000",
+  "deployBlock": 47419193
+}
