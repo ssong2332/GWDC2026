@@ -31,7 +31,10 @@
 | 용도 | 명령 (원문) | 검증일 |
 |---|---|---|
 | 설치 (루트 — Next 앱·코어·Vitest) | `npm install` | 2026-09-28 |
-| 설치 (chain — Hardhat) | `npm --prefix chain install` | 2026-09-28 |
+| ~~설치 (chain — Hardhat)~~ | ~~`npm --prefix chain install`~~ | ~~2026-09-28~~ |
+| ↳ 교체 사유 (T-04, 2026-09-28) | 이 명령은 실행할 때마다 `chain/package.json`에 `"gwdc2026": "file:.."`(루트 자신)를 다시 추가해 `chain/node_modules/gwdc2026` → 루트 링크 순환을 만든다(재현: 의존성 제거 후 이 명령 1회 → package.json에 재추가됨). 아래 두 행으로 교체 | — |
+| 설치 (chain — lockfile 기준, 루트에서) | `npm --prefix chain ci` | 2026-09-28 |
+| chain 의존성 lock 갱신 (chain 디렉터리에서 — `--prefix` 쓰지 말 것) | `cd chain && npm install` (Git Bash) | 2026-09-28 |
 | 빌드 (Next.js) | `npm run build` | 2026-09-28 |
 | 빌드 (컨트랙트 컴파일) | `npm run chain:compile` | 2026-09-28 |
 | 실행 (개발 서버, 127.0.0.1:3000) | `npm run dev` | 2026-09-28 |
@@ -41,7 +44,13 @@
 | 테스트 ③ 통합 (Vitest) | `npm run test:int` | 2026-09-28 |
 | ABI·bytecode export (chain/build/artifacts → src/adapters/chain/generated/; `chain:compile`이 컴파일 뒤 자동 호출) | `npm run chain:export` | 2026-09-28 |
 | 로컬 체인 노드 실행 (127.0.0.1:8545, 별도 터미널 — 종료 전까지 점유) | `npm run chain:node` | 2026-09-28 |
-| 로컬 배포 (실행 중인 chain:node에 MockKRWT+PolicyVault 배포, vault에 1,000,000 mint → data.local/deployments/localhost.json) | `npm run chain:deploy:local` | 2026-09-28 |
+| ~~로컬 배포 (실행 중인 chain:node에 MockKRWT+PolicyVault 배포, vault에 1,000,000 mint → data.local/deployments/localhost.json)~~ | ~~`npm run chain:deploy:local`~~ | ~~2026-09-28~~ |
+| ↳ 교체 사유 (T-04, 2026-09-28) | D-30: 배포 경로를 `cli/deploy.ts`(`--chain localhost\|baseSepolia`) 하나로 통합, `chain/scripts/deploy-local.ts`·`chain:deploy:local` 제거. 아래 행으로 교체 | — |
+| 로컬 배포 (실행 중인 chain:node에 MockKRWT+PolicyVault 배포, vault에 1,000,000 mint → data.local/deployments/localhost.json) | `npm run deploy -- --chain localhost --rpc http://127.0.0.1:8545` | 2026-09-28 |
+| 테스트 ④ E2E 로컬 (chain:node 실행 중 — 배포·8단계·증거 내보내기·검증까지, 종료 코드 0 = 통과) | `npm run e2e:local` | 2026-09-28 |
+| 증거 JSON 내보내기 (로컬 E2E DB → data.local/evidence/localhost/evidence.json) | `npm run evidence:export -- --chain localhost --db data.local/e2e-localhost.sqlite` | 2026-09-28 |
+| 제3자 검증 (로컬 — mismatches 0이면 종료 코드 0) | `npm run evidence:verify -- --file data.local/evidence/localhost/evidence.json --rpc http://127.0.0.1:8545` | 2026-09-28 |
 | 테스트 ① + 가스 표 (hardhat-gas-reporter, toolbox 내장) | `REPORT_GAS=true npm run test:contracts` (Git Bash) | 2026-09-28 |
 | 타입 검사 (루트 — src·tests 전체, 산출물 없음) | `npx tsc --noEmit -p tsconfig.json` | 2026-09-28 |
 | 테스트 ③ 단일 파일 (Hardhat 노드 자동 기동 포함) | `npx vitest run --config vitest.integration.config.ts tests/integration/db.test.ts` | 2026-09-28 |
+| 실행 (개발 서버를 로컬 체인·가짜 Kiln으로 강제 — 사용자 env 파일이 CHAIN=baseSepolia여도 프로세스 환경 변수가 우선. chain:node 실행 + 로컬 배포 후, Git Bash) | `CHAIN=localhost KILN_MODE=fake RPC_URL=http://127.0.0.1:8545 DATABASE_PATH=data.local/app-ui-dev.sqlite npm run dev` | 2026-09-28 |

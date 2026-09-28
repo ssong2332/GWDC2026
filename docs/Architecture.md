@@ -7,7 +7,7 @@
 
 - implementer는 아래 "데이터 모델과 인터페이스"의 시그니처·스키마·코드값만 쓴다. 바꿔야 하면 구현하지 말고 architect로 되돌린다.
 - 표의 `(제안 — OQ #n)` 값은 사용자 확인 전 기본값이다. 값은 `src/config/constants.ts` 한 곳에만 둔다 (CodingRules "설정 및 상수").
-- 개인키·Kiln 키는 Next.js 서버 프로세스에 절대 로드하지 않는다 — CLI 프로세스만 쓴다 (D-16).
+- 개인키는 Next.js 서버 프로세스에 절대 로드하지 않는다 — CLI 프로세스만 쓴다 (D-16. Kiln 키는 D-16 범위 밖 — 서버도 `KILN_API_KEY`를 로드한다, `src/server/env.ts`의 `CLI_ONLY_KEYS`는 `AGENT_PRIVATE_KEY`·`OWNER_PRIVATE_KEY`만 가드).
 - `(추정)`이 붙은 수치는 측정값이 아니다. 각 행에 확인 방법이 있다.
 
 ## 기술 스택
@@ -107,7 +107,7 @@ Hardhat 산출물 경로는 `chain/build/artifacts`, `chain/build/cache`로 설�
 | `src/server/container.ts` | Route Handler용 의존성 조립 (키 없는 어댑터만) | adapters, config, `server/env` |
 | `src/app` (pages) | 4화면 라우팅·레이아웃 | `src/ui` |
 | `src/app/api` | Route Handler: 입력 검증 → 유스케이스 호출 → DTO 직렬화(bigint→문자열) → 에러 매핑 | `server/container`, `core/usecases` |
-| `src/ui` | 지갑 연결·서명, 화면 상태(로딩·빈 값·에러), 재사용 컴포넌트 | viem(브라우저), `core/domain`(reasons, 표시용) |
+| `src/ui` | 지갑 연결·서명, 화면 상태(로딩·빈 값·에러), 재사용 컴포넌트 | viem(브라우저), `core/domain`(reasons, 표시용), generated ABI 상수(`adapters/chain/generated/PolicyVault`), `app/api/_lib/dto`(타입만), `config/merchants` |
 | `cli/` | 배포, E2E(계층 ④·데모), 단건 지출, 증거 내보내기, 제3자 검증 | `core/usecases`, adapters, config (`src/server/**` 금지 — ADR-0005) |
 
 ## 데이터 흐름
@@ -376,6 +376,7 @@ type KilnCallRecord = {
 };
 ```
 
+- `KilnCallRepo.findById`는 위 `KilnCallRecord`에 `rawArguments: string | null`을 더해 반환한다(`src/core/ports.ts`) — 도구 호출 원문 인자를 그대로 보관해, policy_set 증거가 Kiln 후보값을 원문 그대로 쥘 수 있게 한다.
 - 검증(zod)은 유스케이스가 한다. 클라이언트는 전송·재시도·usage 수집만 한다.
 - `FakeKilnClient`: 생성자에 응답 핸들러를 주입(테스트는 큐, E2E·UI 개발 기본 핸들러는 결정적 규칙: 판단은 itemDescription이 `/personal|gaming|개인/i`에 맞으면 mismatch). `provider:"fake"`로 기록되어 효율 리포트의 실측 행과 섞이지 않는다.
 
@@ -617,6 +618,10 @@ prepareOwnerAction(deps, i:
 // owner != vault.owner 이면 NOT_OWNER 에러 (UI 가드용 — 최종 권한은 컨트랙트)
 
 processSpendRequest(deps, i: SpendRequestInput): Promise<SpendOutcome>;
+confirmOwnerAction(deps, i: { evidenceId: string; txHash: Hex }): Promise<{ status: "anchored"|"reverted"; events: DecodedVaultEvent[] }>;
+// evidenceId의 kind가 policy_set|approval|rejection|pause|unpause가 아니면 NOT_FOUND. 영수증은 기다리지 않고 syncChainEvents로 확인(D-23)
+listActivity(deps: { chainId: number; vault: Hex; chainEvents: ChainEventRepo; evidence: EvidenceRepo; merchants: MerchantEntry[] }): ActivityItem[];
+// 캐시(ADR-0004)만 읽는다 — 호출 전 syncChainEvents 선행은 호출자 책임
 syncChainEvents(deps): Promise<{ newEvents: number; anchored: number; toBlock: bigint }>;
 verifyTx(deps, txHash: Hex): Promise<AuditResult>;
 buildReceipt(deps, requestId: Hex): Promise<Receipt | null>;
@@ -744,6 +749,7 @@ docs/PRD.md의 "배포·운영" 항목이 요구사항이라면, 여기는 그 �
 | DB·상태 마이그레이션 | SQLite는 앱·CLI 시작 시 `CREATE TABLE IF NOT EXISTS` + `PRAGMA user_version` 확인. 버전 불일치 시 시작 거부 + "delete data.local/app.sqlite and rerun E2E" 안내 (해커톤 기간 중 자동 마이그레이션 없음). 온체인 상태는 불변 — 컨트랙트 변경은 새 배포(새 주소) |
 | 롤백 절차 | 앱: `git revert <커밋>` → `npm run build` → 재시작 (약 3분). 컨트랙트: 이전 주소가 담긴 `deployments/baseSepolia.json`을 git에서 되돌리면 앱이 이전 vault를 가리킨다 (약 1분). 이미 쓰인 온체인 기록·내보낸 증거는 되돌리지 않는다 |
 | 헬스체크 / 스모크 테스트 | 로컬 릴리스: `npm run e2e:local` 종료 코드 0. Base Sepolia: `npm run evidence:verify -- --file evidence/base-sepolia/evidence.json`의 `mismatches: 0`. 상시 헬스 엔드포인트는 해당 없음 — 로컬 단일 사용자 데모 |
+| 운영 규칙 — 제출 증거 대상 DB (사용자 결정, 코드로 강제되지 않음) | 제출용 증거는 CLI(`e2e:sepolia --deploy`)가 새 vault와 전용 DB로 만든 것만 내보낸다. UI 시연은 별도 `DATABASE_PATH`를 쓴다 — 서명 거절로 anchor 없는 owner 증거가 섞이면 verify에서 TX_NOT_FOUND 불일치로 세어진다(D-23, 의도된 동작이지 결함이 아님) |
 
 ### `.env.example` 변수 목록 (T-01에서 implementer가 플레이스홀더로 반영 — 이 문서 자체는 .env.example을 수정하지 않는다)
 
