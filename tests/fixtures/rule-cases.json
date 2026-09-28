@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "about": "Shared spend-decision cases for PolicyVault (chain/test, layer 1) and evaluatePrecheck (tests/unit, layer 2). Amounts are decimal strings in mKRW (1 mKRW = 1 KRW, D-05). Merchants are symbolic: A and B are on the policy list, X is not.",
+  "timing": "Each case starts at second 0 of a fresh UTC day. Every transaction mines one block about 1 second later. Setup order: mint vaultBalance -> setPolicy (unless policy is null) -> priorSpends in order (each may first advance advanceSecondsBefore) -> pause if paused -> advance advanceSeconds -> request.",
+  "feeBps": 100,
+  "defaults": {
+    "vaultBalance": "1000000",
+    "policy": {
+      "budget": "200000",
+      "approvalThreshold": "50000",
+      "expiresInSeconds": 604800,
+      "maxPerMinute": 3,
+      "maxPerDay": 20,
+      "merchants": ["A", "B"]
+    }
+  },
+  "cases": [
+    {
+      "id": "execute-within-limits",
+      "request": { "merchant": "A", "amount": "30000", "agentReviewRequest": false },
+      "expected": { "outcome": "executed", "reason": 0, "flags": 0, "fee": "300" }
+    },
+    {
+      "id": "execute-amount-equals-threshold",
+      "request": { "merchant": "B", "amount": "50000", "agentReviewRequest": false },
+      "expected": { "outcome": "executed", "reason": 0, "flags": 0, "fee": "500" }
+    },
+    {
+      "id": "pending-over-threshold",
+      "request": { "merchant": "A", "amount": "50001", "agentReviewRequest": false },
+      "expected": { "outcome": "pending", "reason": 0, "flags": 1, "fee": "500" }
+    },
+    {
+      "id": "pending-agent-review-request",
+      "request": { "merchant": "A", "amount": "15000", "agentReviewRequest": true },
+      "expected": { "outcome": "pending", "reason": 0, "flags": 2, "fee": "150" }
+    },
+    {
+      "id": "pending-both-flags",
+      "request": { "merchant": "B", "amount": "60000", "agentReviewRequest": true },
+      "expected": { "outcome": "pending", "reason": 0, "flags": 3, "fee": "600" }
+    },
+    {
+      "id": "blocked-paused",
+      "setup": { "paused": true },
+      "request": { "merchant": "A", "amount": "5000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 1, "flags": 0, "fee": "50" }
+    },
+    {
+      "id": "blocked-paused-beats-merchant",
+      "setup": { "paused": true },
+      "request": { "merchant": "X", "amount": "5000", "agentReviewRequest": true },
+      "expected": { "outcome": "blocked", "reason": 1, "flags": 0, "fee": "50" }
+    },
+    {
+      "id": "blocked-no-policy",
+      "setup": { "policy": null },
+      "request": { "merchant": "A", "amount": "1000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 2, "flags": 0, "fee": "10" }
+    },
+    {
+      "id": "blocked-expired",
+      "setup": { "policy": { "expiresInSeconds": 100 }, "advanceSeconds": 200 },
+      "request": { "merchant": "A", "amount": "1000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 3, "flags": 0, "fee": "10" }
+    },
+    {
+      "id": "blocked-rate-limit-minute-4th",
+      "setup": {
+        "priorSpends": [
+          { "merchant": "A", "amount": "1000" },
+          { "merchant": "A", "amount": "1000" },
+          { "merchant": "A", "amount": "1000" }
+        ]
+      },
+      "request": { "merchant": "A", "amount": "1000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 4, "flags": 0, "fee": "10" }
+    },
+    {
+      "id": "execute-next-minute-resets",
+      "setup": {
+        "priorSpends": [
+          { "merchant": "A", "amount": "1000" },
+          { "merchant": "A", "amount": "1000" },
+          { "merchant": "A", "amount": "1000" }
+        ],
+        "advanceSeconds": 60
+      },
+      "request": { "merchant": "A", "amount": "1000", "agentReviewRequest": false },
+      "expected": { "outcome": "executed", "reason": 0, "flags": 0, "fee": "10" }
+    },
+    {
+      "id": "blocked-rate-limit-counts-merchant-blocks",
+      "setup": {
+        "priorSpends": [
+          { "merchant": "X", "amount": "1000" },
+          { "merchant": "X", "amount": "1000" },
+          { "merchant": "X", "amount": "1000" }
+        ]
+      },
+      "request": { "merchant": "A", "amount": "1000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 4, "flags": 0, "fee": "10" }
+    },
+    {
+      "id": "blocked-rate-limit-day",
+      "setup": {
+        "policy": { "maxPerMinute": 5, "maxPerDay": 5 },
+        "priorSpends": [
+          { "merchant": "A", "amount": "1000" },
+          { "merchant": "A", "amount": "1000" },
+          { "merchant": "A", "amount": "1000" },
+          { "merchant": "A", "amount": "1000" },
+          { "merchant": "A", "amount": "1000" }
+        ],
+        "advanceSeconds": 60
+      },
+      "request": { "merchant": "A", "amount": "1000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 5, "flags": 0, "fee": "10" }
+    },
+    {
+      "id": "blocked-merchant-not-allowed",
+      "request": { "merchant": "X", "amount": "1000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 6, "flags": 0, "fee": "10" }
+    },
+    {
+      "id": "blocked-block-beats-pending",
+      "request": { "merchant": "X", "amount": "60000", "agentReviewRequest": true },
+      "expected": { "outcome": "blocked", "reason": 6, "flags": 0, "fee": "600" }
+    },
+    {
+      "id": "blocked-over-budget-fee-tips-over",
+      "setup": { "policy": { "budget": "100000", "approvalThreshold": "100000" } },
+      "request": { "merchant": "A", "amount": "100000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 7, "flags": 0, "fee": "1000" }
+    },
+    {
+      "id": "execute-amount-plus-fee-equals-budget",
+      "setup": { "policy": { "budget": "101000", "approvalThreshold": "101000" } },
+      "request": { "merchant": "A", "amount": "100000", "agentReviewRequest": false },
+      "expected": { "outcome": "executed", "reason": 0, "flags": 0, "fee": "1000" }
+    },
+    {
+      "id": "blocked-over-budget-with-reserved",
+      "setup": {
+        "policy": { "budget": "100000" },
+        "priorSpends": [{ "merchant": "A", "amount": "60000" }]
+      },
+      "request": { "merchant": "A", "amount": "40000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 7, "flags": 0, "fee": "400" }
+    },
+    {
+      "id": "blocked-insufficient-vault-balance",
+      "setup": { "vaultBalance": "30000" },
+      "request": { "merchant": "A", "amount": "30000", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 8, "flags": 0, "fee": "300" }
+    },
+    {
+      "id": "blocked-insufficient-vault-balance-with-reserved",
+      "setup": {
+        "vaultBalance": "70000",
+        "priorSpends": [{ "merchant": "A", "amount": "60000" }]
+      },
+      "request": { "merchant": "A", "amount": "9500", "agentReviewRequest": false },
+      "expected": { "outcome": "blocked", "reason": 8, "flags": 0, "fee": "95" }
+    },
+    {
+      "id": "execute-fee-rounds-down-to-zero",
+      "request": { "merchant": "A", "amount": "99", "agentReviewRequest": false },
+      "expected": { "outcome": "executed", "reason": 0, "flags": 0, "fee": "0" }
+    }
+  ]
+}

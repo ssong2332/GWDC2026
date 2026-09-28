@@ -1,0 +1,2 @@
+export const INTEGRATION_RPC_PORT = 8546;
+export const INTEGRATION_RPC_URL = `http://127.0.0.1:${INTEGRATION_RPC_PORT}`;
