@@ -6,8 +6,7 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "node": "hardhat node",
-    "export": "hardhat run scripts/export-artifacts.ts",
-    "deploy:local": "hardhat run scripts/deploy-local.ts --network localhost"
+    "export": "hardhat run scripts/export-artifacts.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^4.1.2",
@@ -16,7 +15,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.6.1",
-    "gwdc2026": "file:.."
+    "@openzeppelin/contracts": "^5.6.1"
   }
 }

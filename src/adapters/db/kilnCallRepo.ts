@@ -19,6 +19,7 @@ type Row = {
     cost_usd: string | null;
     generation_id: string | null;
     thinking_mode: KilnCallRecord["thinkingMode"];
+    raw_arguments: string | null;
     created_at: string;
 };
 
@@ -56,6 +57,7 @@ export function createKilnCallRepo(db: Database.Database): KilnCallRepo {
                 generationId: r.generation_id,
                 thinkingMode: r.thinking_mode,
                 createdAt: r.created_at,
+                rawArguments: r.raw_arguments,
             };
         },
     };

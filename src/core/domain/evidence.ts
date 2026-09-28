@@ -113,3 +113,39 @@ export function hashPackage(pkg: unknown): { canonical: string; hash: Hex } {
     const canonical = canonicalJson(pkg);
     return { canonical, hash: hashCanonical(canonical) };
 }
+
+/** Export file (Architecture 5 "내보내기 파일") — the only input of the third-party verifier. */
+export type EvidenceExportRecord = { evidenceId: string; kind: string; evidenceHash: Hex; package: unknown; anchor: Anchor };
+
+export type EvidenceExport = {
+    schema: "agent-spend-evidence-export/v1";
+    network: "localhost" | "baseSepolia";
+    chainId: number;
+    vault: Hex;
+    token: Hex;
+    deployBlock: string;
+    exportedAt: string;
+    records: EvidenceExportRecord[];
+    kilnCalls: KilnCallExport[];
+};
+
+/** KilnCallRecord (Architecture 4) as exported — same fields, plain JSON. */
+export type KilnCallExport = {
+    callId: string;
+    flow: "policy_parse" | "intent_judge";
+    provider: "kiln" | "fake";
+    model: string;
+    httpStatus: number | null;
+    finishReason: string | null;
+    attempts: number;
+    latencyMs: number;
+    promptTokens: number;
+    completionTokens: number;
+    reasoningTokens: number | null;
+    totalTokens: number;
+    cachedTokens: number | null;
+    costUsd: string | null;
+    generationId: string | null;
+    thinkingMode: "default" | "kwargs_off" | "no_think";
+    createdAt: string;
+};

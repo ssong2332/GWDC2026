@@ -4,6 +4,7 @@ import { hardhat } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { policyVaultAbi } from "@/adapters/chain/generated/PolicyVault";
 import { createViemAgentWriter, createViemVaultReader } from "@/adapters/chain/viemVault";
+import { createChainEventRepo } from "@/adapters/db/chainEventRepo";
 import { createEvidenceRepo } from "@/adapters/db/evidenceRepo";
 import { createKilnCallRepo } from "@/adapters/db/kilnCallRepo";
 import { openDatabase } from "@/adapters/db/sqlite";
@@ -57,6 +58,7 @@ function depsFor(d: Deployed, replies: FakeReply[], over: Partial<ProcessSpendDe
         evidence: createEvidenceRepo(db),
         kilnCalls: createKilnCallRepo(db),
         spendRequests: createSpendRequestRepo(db),
+        chainEvents: createChainEventRepo(db),
         merchants: MERCHANT_REGISTRY,
         clock: { now: () => new Date() },
         ...over,
@@ -303,7 +305,7 @@ describe("processSpendRequest — rejected inputs and failures", () => {
         await processSpendRequest(deps, { merchantId: "daiso", amount: 1_000n, itemDescription: "Tape" });
         // A second, empty database so the reused id reaches the chain instead of failing the local primary key.
         const db2 = openDatabase(":memory:");
-        const deps2 = { ...deps, evidence: createEvidenceRepo(db2), kilnCalls: createKilnCallRepo(db2), spendRequests: createSpendRequestRepo(db2) };
+        const deps2 = { ...deps, evidence: createEvidenceRepo(db2), kilnCalls: createKilnCallRepo(db2), spendRequests: createSpendRequestRepo(db2), chainEvents: createChainEventRepo(db2) };
         await registerPolicyEvidenceCopy(db, db2);
         await expect(processSpendRequest(deps2, { merchantId: "daiso", amount: 1_000n, itemDescription: "Tape again" })).rejects.toSatisfy(
             (e) => e instanceof AppError && e.code === "CHAIN_TX_REVERTED",
@@ -319,6 +321,7 @@ describe("processSpendRequest — rejected inputs and failures", () => {
             evidence: createEvidenceRepo(empty),
             kilnCalls: createKilnCallRepo(empty),
             spendRequests: createSpendRequestRepo(empty),
+            chainEvents: createChainEventRepo(empty),
         });
         const nonceBefore = await agentNonce(d);
         await expect(processSpendRequest(deps, { merchantId: "daiso", amount: 1_000n, itemDescription: "Tape" })).rejects.toSatisfy(
@@ -327,6 +330,45 @@ describe("processSpendRequest — rejected inputs and failures", () => {
         expect(kiln.calls).toHaveLength(0);
         expect(await agentNonce(d)).toBe(nonceBefore);
         empty.close();
+    });
+});
+
+describe("processSpendRequest — active policy from the event cache (ADR-0004, D-35)", () => {
+    it("scans deployBlock..latest once, then only blocks after the cached cursor; the PolicySet is cached", async () => {
+        const { d, policyEvidenceHash } = await ready();
+        const live = createViemVaultReader({ client: publicClient, vault: d.vault, chainId: hardhat.id });
+        const ranges: { from: bigint; to: bigint }[] = [];
+        const reader: VaultReader = {
+            ...live,
+            getLogs: (from, to) => {
+                ranges.push({ from, to });
+                return live.getLogs(from, to);
+            },
+        };
+        const { deps } = depsFor(d, [judge(true), judge(true)], { reader });
+
+        const first = await processSpendRequest(deps, { merchantId: "daiso", amount: 1_000n, itemDescription: "Tape" });
+        const second = await processSpendRequest(deps, { merchantId: "daiso", amount: 1_000n, itemDescription: "Glue" });
+
+        expect([first.outcome, second.outcome]).toEqual(["executed", "executed"]);
+        expect(ranges).toHaveLength(2);
+        expect(ranges[0].from).toBe(d.deployBlock);
+        expect(ranges[1].from).toBe(ranges[0].to + 1n);
+        const cached = db.prepare("SELECT event_name, evidence_hash FROM chain_events WHERE event_name = ?").all("PolicySet");
+        expect(cached).toEqual([{ event_name: "PolicySet", evidence_hash: policyEvidenceHash }]);
+        expect(stored(second.requestId).pkg.policyEvidenceHash).toBe(policyEvidenceHash);
+    });
+
+    it("no PolicySet for the active version in the cache → POLICY_EVENT_NOT_FOUND before any Kiln call or tx", async () => {
+        const { d } = await ready();
+        const live = createViemVaultReader({ client: publicClient, vault: d.vault, chainId: hardhat.id });
+        const { kiln, deps } = depsFor(d, [judge(true)], { reader: { ...live, getLogs: async () => [] } });
+        const nonceBefore = await agentNonce(d);
+        await expect(processSpendRequest(deps, { merchantId: "daiso", amount: 1_000n, itemDescription: "Tape" })).rejects.toSatisfy(
+            (e) => e instanceof AppError && e.code === "POLICY_EVENT_NOT_FOUND",
+        );
+        expect(kiln.calls).toHaveLength(0);
+        expect(await agentNonce(d)).toBe(nonceBefore);
     });
 });
 

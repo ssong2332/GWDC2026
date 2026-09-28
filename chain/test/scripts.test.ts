@@ -3,9 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import hre from "hardhat";
-import { getAddress } from "viem";
 import { exportArtifacts, EXPORTED_CONTRACTS } from "../scripts/export-artifacts";
-import { deployLocal, writeDeployment, LOCAL_FEE_BPS, LOCAL_VAULT_MINT } from "../scripts/deploy-local";
 
 function tmpDir(prefix: string): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -43,40 +41,5 @@ describe("chain:export (scripts/export-artifacts.ts)", function () {
         await exportArtifacts(out);
 
         expect(fs.existsSync(path.join(out, "PolicyVault.ts"))).to.equal(true);
-    });
-});
-
-describe("local deploy (scripts/deploy-local.ts)", function () {
-    it("deploys MockKRWT + PolicyVault with accounts #0 agent, #1 owner, #2 fee recipient, 1% fee, and funds the vault", async function () {
-        const [agent, owner, feeRecipient] = await hre.viem.getWalletClients();
-        const publicClient = await hre.viem.getPublicClient();
-
-        const dep = await deployLocal();
-
-        expect(dep.chainId).to.equal(31337);
-        expect(dep.agent).to.equal(getAddress(agent.account.address));
-        expect(dep.owner).to.equal(getAddress(owner.account.address));
-        expect(dep.feeRecipient).to.equal(getAddress(feeRecipient.account.address));
-        expect(dep.feeBps).to.equal(LOCAL_FEE_BPS);
-        expect(LOCAL_FEE_BPS).to.equal(100);
-        expect(dep.vaultMint).to.equal(LOCAL_VAULT_MINT.toString());
-        const vault = await hre.viem.getContractAt("PolicyVault", dep.vault);
-        const token = await hre.viem.getContractAt("MockKRWT", dep.token);
-        expect(getAddress(await vault.read.owner())).to.equal(dep.owner);
-        expect(getAddress(await vault.read.agent())).to.equal(dep.agent);
-        expect(getAddress(await vault.read.token())).to.equal(dep.token);
-        expect(await token.read.balanceOf([dep.vault])).to.equal(LOCAL_VAULT_MINT);
-        expect(BigInt(dep.deployBlock) <= (await publicClient.getBlockNumber())).to.equal(true);
-        expect(await publicClient.getCode({ address: dep.vault, blockNumber: BigInt(dep.deployBlock) })).to.not.equal(undefined);
-    });
-
-    it("writes the deployment as JSON (checksum addresses, decimal strings), creating the directory", async function () {
-        const dep = await deployLocal();
-        const file = path.join(tmpDir("deploy-"), "deployments", "localhost.json");
-
-        writeDeployment(dep, file);
-
-        expect(JSON.parse(fs.readFileSync(file, "utf8"))).to.deep.equal(dep);
-        expect(dep.vault).to.equal(getAddress(dep.vault));
     });
 });

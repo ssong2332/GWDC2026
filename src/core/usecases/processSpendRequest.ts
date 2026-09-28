@@ -8,6 +8,7 @@ import type { Hex, MerchantEntry, SpendOutcome, SpendRequestInput, VaultStateSna
 import { AppError } from "@/core/errors";
 import type {
     AgentVaultWriter,
+    ChainEventRepo,
     Clock,
     DecodedVaultEvent,
     EvidenceRepo,
@@ -17,11 +18,12 @@ import type {
     VaultReader,
 } from "@/core/ports";
 import { saveKilnCall, toKilnRef } from "./kilnRecords";
+import { pullNewEvents, toAnchor } from "./syncChainEvents";
 
 export type ProcessSpendDeps = {
     chainId: number;
     vault: Hex;
-    /** First block to scan for the active policy's PolicySet event. */
+    /** First block of the event cache when it is empty (ADR-0004). */
     deployBlock: bigint;
     reader: VaultReader;
     writer: AgentVaultWriter;
@@ -29,6 +31,7 @@ export type ProcessSpendDeps = {
     evidence: EvidenceRepo;
     kilnCalls: KilnCallRepo;
     spendRequests: SpendRequestRepo;
+    chainEvents: ChainEventRepo;
     merchants: MerchantEntry[];
     clock: Clock;
     newRequestId?: () => Hex;
@@ -52,31 +55,25 @@ function validate(deps: ProcessSpendDeps, i: SpendRequestInput): MerchantEntry {
     return merchant;
 }
 
-/** The active policy's evidence hash (from its PolicySet event) and, if stored locally, its package. */
+/**
+ * The active policy's evidence hash (from its PolicySet event) and, if stored locally, its package.
+ * The event comes from the incremental cache (ADR-0004): only blocks after the cached cursor are fetched.
+ */
 async function activePolicy(
     deps: ProcessSpendDeps,
     state: VaultStateSnapshot,
 ): Promise<{ hash: Hex; pkg: PolicySetEvidence | null }> {
     if (state.policyVersion === 0n) return { hash: ZERO_HASH, pkg: null };
-    const events = await deps.reader.getLogs(deps.deployBlock, await deps.reader.latestBlock());
-    const set = events.filter((e) => e.name === "PolicySet" && e.args.policyVersion === state.policyVersion).at(-1);
+    await pullNewEvents(deps);
+    const set = deps.chainEvents
+        .list(deps.chainId, deps.vault)
+        .filter((e) => e.name === "PolicySet" && e.args.policyVersion === state.policyVersion).at(-1);
     if (!set)
-        throw new AppError("POLICY_EVENT_NOT_FOUND", `no PolicySet event for policy version ${state.policyVersion} since block ${deps.deployBlock}`);
+        throw new AppError("POLICY_EVENT_NOT_FOUND", `no PolicySet event for policy version ${state.policyVersion} in the event cache`);
     const hash = set.args.evidenceHash as Hex;
     const row = deps.evidence.findByHash(hash);
     const pkg = row && row.kind === "policy_set" ? (JSON.parse(row.packageJson) as PolicySetEvidence) : null;
     return { hash, pkg };
-}
-
-function jsonArgs(args: Record<string, unknown>): Record<string, string | number | boolean | string[]> {
-    const out: Record<string, string | number | boolean | string[]> = {};
-    for (const [k, v] of Object.entries(args)) {
-        if (typeof v === "bigint") out[k] = v.toString();
-        else if (Array.isArray(v)) out[k] = v.map(String);
-        else if (typeof v === "number" || typeof v === "boolean" || typeof v === "string") out[k] = v;
-        else out[k] = String(v);
-    }
-    return out;
 }
 
 /**
@@ -188,13 +185,7 @@ export async function processSpendRequest(deps: ProcessSpendDeps, i: SpendReques
     const outcome = SPEND_EVENTS[event.name];
     const blockReason = outcome === "blocked" ? (Number(event.args.reason) as BlockReason) : null;
     const pendingFlags = outcome === "pending" ? Number(event.args.flags) : null;
-    deps.evidence.setAnchor(evidenceHash, {
-        txHash,
-        blockNumber: event.blockNumber.toString(),
-        logIndex: event.logIndex,
-        event: event.name,
-        args: jsonArgs(event.args),
-    });
+    deps.evidence.setAnchor(evidenceHash, toAnchor(event));
     deps.spendRequests.updateOutcome(requestId, { txHash, outcome, onchainReason: blockReason, pendingFlags });
 
     const predicted =

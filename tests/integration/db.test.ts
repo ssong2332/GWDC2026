@@ -197,6 +197,7 @@ describe("KilnCallRepo", () => {
             generationId: "gen-1",
             thinkingMode: "default",
             createdAt: "2026-09-28T00:00:00.000Z",
+            rawArguments: '{"fits_purpose":true}',
         });
         expect(repo.findById("nope")).toBeNull();
     });

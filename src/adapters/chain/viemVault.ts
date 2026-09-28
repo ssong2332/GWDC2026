@@ -14,7 +14,7 @@ import {
 import { LOG_BLOCK_CHUNK } from "@/config/constants";
 import type { Hex, VaultStateSnapshot } from "@/core/domain/types";
 import { AppError } from "@/core/errors";
-import type { AgentVaultWriter, DecodedVaultEvent, VaultReader } from "@/core/ports";
+import type { AgentVaultWriter, DecodedVaultEvent, OwnerVaultWriter, TxResult, VaultReader } from "@/core/ports";
 import { policyVaultAbi } from "./generated/PolicyVault";
 
 // viem implementation of the vault ports (Architecture 7). Only this file knows the ABI shapes.
@@ -135,41 +135,65 @@ function isRevert(err: unknown): boolean {
     return /revert/i.test(err instanceof Error ? err.message : String(err));
 }
 
-export function createViemAgentWriter(opts: {
+type WriterOptions = {
     walletClient: WalletClient;
     publicClient: PublicClient;
     vault: Address;
     account: Address | Account;
     chain: Chain;
-}): AgentVaultWriter {
+};
+
+/** Sends one PolicyVault call and waits for its receipt. Reverts → CHAIN_TX_REVERTED, transport errors → CHAIN_RPC_ERROR. */
+function vaultSender(opts: WriterOptions) {
     const { walletClient, publicClient, vault, account, chain } = opts;
+    return async (functionName: string, args: readonly unknown[]): Promise<TxResult> => {
+        let txHash: Hex;
+        try {
+            txHash = await walletClient.writeContract({ address: vault, abi: policyVaultAbi, functionName, args, account, chain } as never);
+        } catch (err) {
+            if (isRevert(err)) throw new AppError("CHAIN_TX_REVERTED", `PolicyVault.${functionName} reverted`, false, { cause: err });
+            throw new AppError("CHAIN_RPC_ERROR", `could not send the ${functionName} transaction`, true, { cause: err });
+        }
+        const r = await publicClient.waitForTransactionReceipt({ hash: txHash });
+        const l1Fee = (r as { l1Fee?: bigint | null }).l1Fee ?? 0n;
+        return {
+            txHash,
+            receipt: {
+                status: r.status,
+                events: await decodeVaultLogs(publicClient, vault, r.logs),
+                gasUsed: r.gasUsed,
+                feeWei: r.gasUsed * r.effectiveGasPrice + l1Fee,
+            },
+        };
+    };
+}
+
+export function createViemAgentWriter(opts: WriterOptions): AgentVaultWriter {
+    const send = vaultSender(opts);
     return {
-        async spend(a) {
-            let txHash: Hex;
-            try {
-                txHash = await walletClient.writeContract({
-                    address: vault,
-                    abi: policyVaultAbi,
-                    functionName: "spend",
-                    args: [a.requestId, a.merchant, a.amount, a.agentReviewRequest, a.evidenceHash],
-                    account,
-                    chain,
-                });
-            } catch (err) {
-                if (isRevert(err)) throw new AppError("CHAIN_TX_REVERTED", "PolicyVault.spend reverted", false, { cause: err });
-                throw new AppError("CHAIN_RPC_ERROR", "could not send the spend transaction", true, { cause: err });
-            }
-            const r = await publicClient.waitForTransactionReceipt({ hash: txHash });
-            const l1Fee = (r as { l1Fee?: bigint | null }).l1Fee ?? 0n;
-            return {
-                txHash,
-                receipt: {
-                    status: r.status,
-                    events: await decodeVaultLogs(publicClient, vault, r.logs),
-                    gasUsed: r.gasUsed,
-                    feeWei: r.gasUsed * r.effectiveGasPrice + l1Fee,
+        spend: (a) => send("spend", [a.requestId, a.merchant, a.amount, a.agentReviewRequest, a.evidenceHash]),
+    };
+}
+
+/** Owner-signed calls for the CLI (E2E, unpause). The browser path signs with the owner wallet instead. */
+export function createViemOwnerWriter(opts: WriterOptions): OwnerVaultWriter {
+    const send = vaultSender(opts);
+    return {
+        setPolicy: (p, evidenceHash) =>
+            send("setPolicy", [
+                {
+                    budget: p.budget,
+                    approvalThreshold: p.approvalThreshold,
+                    expiresAt: BigInt(p.expiresAt),
+                    maxPerMinute: p.maxPerMinute,
+                    maxPerDay: p.maxPerDay,
+                    merchants: p.merchants,
                 },
-            };
-        },
+                evidenceHash,
+            ]),
+        approve: (requestId, evidenceHash) => send("approve", [requestId, evidenceHash]),
+        reject: (requestId, evidenceHash) => send("reject", [requestId, evidenceHash]),
+        pause: (evidenceHash) => send("pause", [evidenceHash]),
+        unpause: (evidenceHash) => send("unpause", [evidenceHash]),
     };
 }

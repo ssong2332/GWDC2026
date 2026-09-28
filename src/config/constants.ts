@@ -26,6 +26,9 @@ export const INPUT_LIMITS = {
     intentReasonMax: 200,
 } as const;
 
+/** pause/unpause evidence note length (Architecture 5: 0..200, empty allowed). */
+export const OWNER_NOTE_MAX = 200;
+
 /** Architecture 4 "요청 본문" and D-19 retry rules. */
 export const KILN = {
     defaultModel: "qwen3-32b",
@@ -52,6 +55,7 @@ export const KILN_FUNCTION_NAMES = {
 export const FAKE_INTENT_MISMATCH_PATTERN = /personal|gaming|개인/i;
 
 export const EVIDENCE_SCHEMA = "agent-spend-evidence/v1";
+export const EVIDENCE_EXPORT_SCHEMA = "agent-spend-evidence-export/v1";
 
 export const SQLITE_USER_VERSION = 1;
 
@@ -59,3 +63,28 @@ export const SQLITE_USER_VERSION = 1;
 export const LOG_BLOCK_CHUNK = 10_000n;
 
 export const ZERO_HASH: `0x${string}` = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+/** Defaults when a variable is unset (Architecture `.env.example` 변수 목록). Tests and e2e:local run without env files. */
+export const ENV_DEFAULTS = {
+    rpcUrl: "http://127.0.0.1:8545",
+    databasePath: "data.local/app.sqlite",
+    kilnBaseUrl: "https://api.bricksum.com/v1",
+} as const;
+
+/** E2E step 0 / cli/deploy.ts (Architecture E2E 시나리오, D-06): 1% fee, vault funded with 1,000,000 mKRW. */
+export const DEPLOY_DEFAULTS = { feeBps: 100, vaultMint: 1_000_000n } as const;
+
+/** HTTP API input bounds (Route Handlers). Domain rules (policy ranges etc.) are checked by the use cases. */
+export const API_LIMITS = { decimalDigitsMax: 30, idMax: 100, listMax: 50 } as const;
+
+/** /api/owner-actions/confirm: how long the server waits for the owner's tx receipt and its events (Architecture 데이터 흐름 A-5). */
+export const OWNER_CONFIRM = { timeoutMs: 60_000, pollMs: 1_000 } as const;
+
+/** Dashboard refresh interval (Architecture 10 "서버 데이터 상태": 5초 폴링). */
+export const DASHBOARD_POLL_MS = 5_000;
+
+/** Default RPC for cli/verify-evidence.ts by chain id (public Base Sepolia RPC; local Hardhat node). */
+export const DEFAULT_VERIFY_RPC: Record<number, string> = {
+    31337: "http://127.0.0.1:8545",
+    84532: "https://sepolia.base.org",
+};

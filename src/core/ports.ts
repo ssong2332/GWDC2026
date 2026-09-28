@@ -1,5 +1,5 @@
 import type { Anchor } from "./domain/evidence";
-import type { Hex, KilnFlow, KilnOutcome, MerchantEntry, VaultStateSnapshot } from "./domain/types";
+import type { Hex, KilnFlow, KilnOutcome, MerchantEntry, PolicyValues, VaultStateSnapshot } from "./domain/types";
 
 // External dependencies of the use cases (Architecture 4 and 7). Implementations live in src/adapters/*.
 
@@ -64,11 +64,23 @@ export interface VaultReader {
     latestBlock(): Promise<bigint>;
 }
 
+/** feeWei = gasUsed × effectiveGasPrice + (l1Fee ?? 0) — input to the E2E per-wallet ETH totals. */
+export type TxResult = {
+    txHash: Hex;
+    receipt: { status: "success" | "reverted"; events: DecodedVaultEvent[]; gasUsed: bigint; feeWei: bigint };
+};
+
 export interface AgentVaultWriter {
-    spend(a: { requestId: Hex; merchant: Hex; amount: bigint; agentReviewRequest: boolean; evidenceHash: Hex }): Promise<{
-        txHash: Hex;
-        receipt: { status: "success" | "reverted"; events: DecodedVaultEvent[]; gasUsed: bigint; feeWei: bigint };
-    }>;
+    spend(a: { requestId: Hex; merchant: Hex; amount: bigint; agentReviewRequest: boolean; evidenceHash: Hex }): Promise<TxResult>;
+}
+
+/** CLI only (E2E, unpause). In the browser the owner wallet signs directly. */
+export interface OwnerVaultWriter {
+    setPolicy(p: PolicyValues & { merchants: Hex[] }, evidenceHash: Hex): Promise<TxResult>;
+    approve(requestId: Hex, evidenceHash: Hex): Promise<TxResult>;
+    reject(requestId: Hex, evidenceHash: Hex): Promise<TxResult>;
+    pause(evidenceHash: Hex): Promise<TxResult>;
+    unpause(evidenceHash: Hex): Promise<TxResult>;
 }
 
 export type EvidenceRow = {
@@ -113,9 +125,10 @@ export type KilnCallInsert = KilnCallRecord & {
 };
 
 // aggregateByFlow (Architecture 7) is left to the efficiency-report task: its FlowAggregate type is not defined yet.
+// findById also returns the stored raw tool arguments: the policy_set evidence keeps the Kiln candidate verbatim.
 export interface KilnCallRepo {
     insert(r: KilnCallInsert): void;
-    findById(id: string): KilnCallRecord | null;
+    findById(id: string): (KilnCallRecord & { rawArguments: string | null }) | null;
 }
 
 export type SpendRequestRow = {
@@ -144,6 +157,15 @@ export interface SpendRequestRepo {
         o: Partial<Pick<SpendRequestRow, "txHash" | "outcome" | "onchainReason" | "pendingFlags">>,
     ): void;
     countByFlow(chainId: number, vault: Hex): { flow: string; n: number }[];
+}
+
+/** Incremental cache of decoded vault events (ADR-0004). bigint args survive a round trip unchanged. */
+export interface ChainEventRepo {
+    upsertMany(e: DecodedVaultEvent[], chainId: number, vault: Hex): void;
+    list(chainId: number, vault: Hex): DecodedVaultEvent[];
+    findByTx(txHash: Hex): DecodedVaultEvent[];
+    getSyncBlock(chainId: number, vault: Hex): bigint | null;
+    setSyncBlock(chainId: number, vault: Hex, b: bigint): void;
 }
 
 export interface Clock {

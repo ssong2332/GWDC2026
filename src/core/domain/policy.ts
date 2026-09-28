@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { KST_OFFSET_SECONDS, POLICY_RULES, SECONDS_PER_DAY } from "@/config/constants";
-import type { MerchantEntry, PolicyCandidate } from "./types";
+import type { MerchantEntry, PolicyCandidate, PolicyValues } from "./types";
 
 export type PolicyArgsCode = "INVALID_ARGS" | "SCHEMA_INVALID" | "UNKNOWN_MERCHANT";
 
@@ -96,4 +96,28 @@ export function validatePolicyArgs(rawArguments: string, registry: MerchantEntry
         },
         warnings: unrecognized.map((name) => `Merchant not in registry, excluded from the policy: ${name}`),
     };
+}
+
+export type FinalPolicyResult = { ok: true } | { ok: false; code: "SCHEMA_INVALID" | "UNKNOWN_MERCHANT" | "EXPIRY_REQUIRED"; message: string };
+
+const isInt = (n: number) => Number.isSafeInteger(n);
+
+/**
+ * Owner-confirmed final values before prepare (Architecture 3 "정책 검증 규칙", 최종값): same ranges as the Kiln
+ * arguments plus a required expiry after `nowSec` and 1 <= maxPerMinute <= maxPerDay <= 1000.
+ */
+export function validateFinalPolicy(v: PolicyValues, registry: MerchantEntry[], nowSec: number): FinalPolicyResult {
+    const bad = (message: string): FinalPolicyResult => ({ ok: false, code: "SCHEMA_INVALID", message });
+    if (v.budget < BigInt(POLICY_RULES.budgetMin) || v.budget > BigInt(POLICY_RULES.budgetMax))
+        return bad(`budget must be ${POLICY_RULES.budgetMin}..${POLICY_RULES.budgetMax}`);
+    if (v.approvalThreshold < 0n || v.approvalThreshold > v.budget) return bad("approvalThreshold must be 0..budget");
+    if (!isInt(v.expiresAt) || v.expiresAt <= 0) return { ok: false, code: "EXPIRY_REQUIRED", message: "an expiry date is required" };
+    if (v.expiresAt <= nowSec) return bad("expiresAt must be in the future");
+    if (!isInt(v.maxPerMinute) || !isInt(v.maxPerDay) || v.maxPerMinute < 1 || v.maxPerMinute > v.maxPerDay || v.maxPerDay > POLICY_RULES.rateLimitMax)
+        return bad(`rate limits must satisfy 1 <= maxPerMinute <= maxPerDay <= ${POLICY_RULES.rateLimitMax}`);
+    const purpose = v.purpose.trim();
+    if (purpose.length === 0 || v.purpose.length > POLICY_RULES.purposeMax) return bad(`purpose must be 1..${POLICY_RULES.purposeMax} characters`);
+    const problem = merchantProblem(v.merchantIds, registry);
+    if (problem) return { ok: false, code: "UNKNOWN_MERCHANT", message: problem };
+    return { ok: true };
 }

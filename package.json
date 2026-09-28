@@ -10,11 +10,15 @@
     "chain:compile": "npm --prefix chain run compile && npm run chain:export",
     "chain:export": "npm --prefix chain run export",
     "chain:node": "npm --prefix chain run node",
-    "chain:deploy:local": "npm --prefix chain run deploy:local",
+    "deploy": "tsx cli/deploy.ts",
     "test:contracts": "npm --prefix chain test",
     "test:unit": "vitest run",
     "test:int": "vitest run --config vitest.integration.config.ts",
-    "test": "npm run test:contracts && npm run test:unit && npm run test:int"
+    "test": "npm run test:contracts && npm run test:unit && npm run test:int",
+    "e2e:local": "tsx cli/e2e.ts --chain localhost --kiln fake --rpc http://127.0.0.1:8545",
+    "e2e:sepolia": "tsx cli/e2e.ts --chain baseSepolia --kiln real",
+    "evidence:export": "tsx cli/export-evidence.ts",
+    "evidence:verify": "tsx cli/verify-evidence.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
