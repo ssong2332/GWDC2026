@@ -16,15 +16,19 @@ import type { Hex, VaultStateSnapshot } from "@/core/domain/types";
 import { AppError } from "@/core/errors";
 import type { AgentVaultWriter, DecodedVaultEvent, OwnerVaultWriter, TxResult, VaultReader } from "@/core/ports";
 import { policyVaultAbi } from "./generated/PolicyVault";
+import { withReadRetry, type ReadRetryOptions } from "./readRetry";
 
 // viem implementation of the vault ports (Architecture 7). Only this file knows the ABI shapes.
+// Chain reads go through withReadRetry (T-07: lagging nodes behind a load-balanced public RPC); sends never do.
 
-async function decodeVaultLogs(client: PublicClient, vault: Address, logs: readonly Log[]): Promise<DecodedVaultEvent[]> {
+type Retry = Partial<ReadRetryOptions> | undefined;
+
+async function decodeVaultLogs(client: PublicClient, vault: Address, logs: readonly Log[], retry: Retry): Promise<DecodedVaultEvent[]> {
     const own = logs.filter((l) => l.address.toLowerCase() === vault.toLowerCase());
     const decoded = parseEventLogs({ abi: policyVaultAbi, logs: own });
     const timestamps = new Map<bigint, number>();
     for (const bn of new Set(decoded.map((l) => l.blockNumber as bigint))) {
-        timestamps.set(bn, Number((await client.getBlock({ blockNumber: bn })).timestamp));
+        timestamps.set(bn, Number((await withReadRetry(() => client.getBlock({ blockNumber: bn }), retry)).timestamp));
     }
     return decoded.map((l) => ({
         name: l.eventName,
@@ -36,8 +40,8 @@ async function decodeVaultLogs(client: PublicClient, vault: Address, logs: reado
     }));
 }
 
-export function createViemVaultReader(opts: { client: PublicClient; vault: Address; chainId: number }): VaultReader {
-    const { client, vault, chainId } = opts;
+export function createViemVaultReader(opts: { client: PublicClient; vault: Address; chainId: number; retry?: Retry }): VaultReader {
+    const { client, vault, chainId, retry } = opts;
     const read = <T>(functionName: string, args: unknown[] = []) =>
         client.readContract({ address: vault, abi: policyVaultAbi, functionName, args } as never) as Promise<T>;
 
@@ -109,8 +113,8 @@ export function createViemVaultReader(opts: { client: PublicClient; vault: Addre
         },
         async getReceiptEvents(txHash) {
             try {
-                const r = await client.getTransactionReceipt({ hash: txHash });
-                return { status: r.status, blockNumber: r.blockNumber, events: await decodeVaultLogs(client, vault, r.logs) };
+                const r = await withReadRetry(() => client.getTransactionReceipt({ hash: txHash }), retry);
+                return { status: r.status, blockNumber: r.blockNumber, events: await decodeVaultLogs(client, vault, r.logs, retry) };
             } catch (err) {
                 if (err instanceof TransactionReceiptNotFoundError) return null;
                 throw new AppError("CHAIN_RPC_ERROR", "could not read the transaction receipt", true, { cause: err });
@@ -118,15 +122,19 @@ export function createViemVaultReader(opts: { client: PublicClient; vault: Addre
         },
         async getLogs(fromBlock, toBlock) {
             const out: DecodedVaultEvent[] = [];
+            // toBlock usually comes from latestBlock(), possibly answered by a node ahead of the one serving getLogs.
+            // Confirm the range end is known (BlockNotFound → retry) so a lagging node is less likely to return a
+            // silently truncated range that would let the event cursor skip past missed logs.
+            if (fromBlock <= toBlock) await withReadRetry(() => client.getBlock({ blockNumber: toBlock }), retry);
             for (let start = fromBlock; start <= toBlock; start += LOG_BLOCK_CHUNK) {
                 const end = start + LOG_BLOCK_CHUNK - 1n < toBlock ? start + LOG_BLOCK_CHUNK - 1n : toBlock;
-                const logs = await client.getLogs({ address: vault, fromBlock: start, toBlock: end });
-                out.push(...(await decodeVaultLogs(client, vault, logs)));
+                const logs = await withReadRetry(() => client.getLogs({ address: vault, fromBlock: start, toBlock: end }), retry);
+                out.push(...(await decodeVaultLogs(client, vault, logs, retry)));
             }
             return out;
         },
         // cacheTime 0: viem caches the block number for the polling interval by default, which hides fresh blocks.
-        latestBlock: () => client.getBlockNumber({ cacheTime: 0 }),
+        latestBlock: () => withReadRetry(() => client.getBlockNumber({ cacheTime: 0 }), retry),
     };
 }
 
@@ -141,11 +149,12 @@ type WriterOptions = {
     vault: Address;
     account: Address | Account;
     chain: Chain;
+    retry?: Retry;
 };
 
 /** Sends one PolicyVault call and waits for its receipt. Reverts → CHAIN_TX_REVERTED, transport errors → CHAIN_RPC_ERROR. */
 function vaultSender(opts: WriterOptions) {
-    const { walletClient, publicClient, vault, account, chain } = opts;
+    const { walletClient, publicClient, vault, account, chain, retry } = opts;
     return async (functionName: string, args: readonly unknown[]): Promise<TxResult> => {
         let txHash: Hex;
         try {
@@ -154,13 +163,14 @@ function vaultSender(opts: WriterOptions) {
             if (isRevert(err)) throw new AppError("CHAIN_TX_REVERTED", `PolicyVault.${functionName} reverted`, false, { cause: err });
             throw new AppError("CHAIN_RPC_ERROR", `could not send the ${functionName} transaction`, true, { cause: err });
         }
-        const r = await publicClient.waitForTransactionReceipt({ hash: txHash });
+        // Waiting for an already-sent tx is a read: safe to retry. The send above is never retried.
+        const r = await withReadRetry(() => publicClient.waitForTransactionReceipt({ hash: txHash }), retry);
         const l1Fee = (r as { l1Fee?: bigint | null }).l1Fee ?? 0n;
         return {
             txHash,
             receipt: {
                 status: r.status,
-                events: await decodeVaultLogs(publicClient, vault, r.logs),
+                events: await decodeVaultLogs(publicClient, vault, r.logs, retry),
                 gasUsed: r.gasUsed,
                 feeWei: r.gasUsed * r.effectiveGasPrice + l1Fee,
             },

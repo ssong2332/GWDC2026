@@ -4,6 +4,7 @@ import { getAddress, type Account, type Address, type Chain, type PublicClient, 
 import { mockKrwtAbi, mockKrwtBytecode } from "@/adapters/chain/generated/MockKRWT";
 import { policyVaultAbi, policyVaultBytecode } from "@/adapters/chain/generated/PolicyVault";
 import { NETWORKS, explorerTxUrl, writeDeploymentFile, type DeploymentFile, type NetworkName } from "@/adapters/chain/networks";
+import { withReadRetry } from "@/adapters/chain/readRetry";
 import { DEPLOY_DEFAULTS } from "@/config/constants";
 import type { Hex } from "@/core/domain/types";
 import { AppError } from "@/core/errors";
@@ -35,7 +36,8 @@ export async function deployContracts(a: DeployArgs): Promise<{ deployment: Depl
     const txs: DeployTx[] = [];
 
     const confirm = async (label: string, hash: Hex) => {
-        const r = await a.publicClient.waitForTransactionReceipt({ hash });
+        // Read-only wait (T-07 retry on lagging RPC nodes); the deploy transaction itself is never re-sent.
+        const r = await withReadRetry(() => a.publicClient.waitForTransactionReceipt({ hash }));
         if (r.status !== "success") throw new AppError("CHAIN_TX_REVERTED", `${label} reverted (${hash})`);
         const l1Fee = (r as { l1Fee?: bigint | null }).l1Fee ?? 0n;
         txs.push({ label, txHash: hash, gasUsed: r.gasUsed, feeWei: r.gasUsed * r.effectiveGasPrice + l1Fee });

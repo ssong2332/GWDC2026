@@ -3,6 +3,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { getAddress } from "viem";
 import { NETWORKS, explorerTxUrl, readDeploymentFile, writeDeploymentFile, type DeploymentFile } from "@/adapters/chain/networks";
+import { withReadRetry } from "@/adapters/chain/readRetry";
 import { createViemAgentWriter, createViemOwnerWriter, createViemVaultReader } from "@/adapters/chain/viemVault";
 import { DEFAULT_RATE_LIMITS, SECONDS_PER_MINUTE } from "@/config/constants";
 import { MERCHANT_REGISTRY } from "@/config/merchants";
@@ -159,7 +160,7 @@ async function main(): Promise<void> {
         const ownerDeps = { chainId: ctx.chainId, vault, vaultOwner: deployment.owner, feeBps: deployment.feeBps, evidence, kilnCalls, merchants: MERCHANT_REGISTRY, clock };
         const sync = () => syncChainEvents({ ...ctx, reader, chainEvents, evidence });
 
-        const latestTs = async () => Number((await publicClient.getBlock({ blockTag: "latest" })).timestamp);
+        const latestTs = async () => Number((await withReadRetry(() => publicClient.getBlock({ blockTag: "latest" }))).timestamp);
         /** Local: jump the node clock to the next minute start. Base Sepolia: poll until a block lands in the next minute. */
         const waitForFreshMinute = async () => {
             const next = (Math.floor((await latestTs()) / SECONDS_PER_MINUTE) + 1) * SECONDS_PER_MINUTE;

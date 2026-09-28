@@ -88,3 +88,11 @@ export const DEFAULT_VERIFY_RPC: Record<number, string> = {
     31337: "http://127.0.0.1:8545",
     84532: "https://sepolia.base.org",
 };
+
+/**
+ * Chain READ retry (T-07): a load-balanced public RPC can answer from a node that has not seen a fresh block yet
+ * (BlockNotFound / "header not found") or fail transiently (HTTP 429/5xx, timeout). Exponential backoff
+ * base·2^(n−1) capped per step; stops at maxAttempts OR when the summed wait would exceed totalWaitCapMs.
+ * Delays: 250, 500, 1000, 2000, 2000 ms = 5.75 s ≤ 8 s. Writes (tx sends) are never retried (duplicate-send risk).
+ */
+export const CHAIN_READ_RETRY = { maxAttempts: 6, backoffBaseMs: 250, backoffCapMs: 2000, totalWaitCapMs: 8000 } as const;
