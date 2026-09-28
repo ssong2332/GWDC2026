@@ -39,3 +39,9 @@
 | 테스트 ① 컨트랙트 (Hardhat) | `npm run test:contracts` | 2026-09-28 |
 | 테스트 ② 단위 (Vitest) | `npm run test:unit` | 2026-09-28 |
 | 테스트 ③ 통합 (Vitest) | `npm run test:int` | 2026-09-28 |
+| ABI·bytecode export (chain/build/artifacts → src/adapters/chain/generated/; `chain:compile`이 컴파일 뒤 자동 호출) | `npm run chain:export` | 2026-09-28 |
+| 로컬 체인 노드 실행 (127.0.0.1:8545, 별도 터미널 — 종료 전까지 점유) | `npm run chain:node` | 2026-09-28 |
+| 로컬 배포 (실행 중인 chain:node에 MockKRWT+PolicyVault 배포, vault에 1,000,000 mint → data.local/deployments/localhost.json) | `npm run chain:deploy:local` | 2026-09-28 |
+| 테스트 ① + 가스 표 (hardhat-gas-reporter, toolbox 내장) | `REPORT_GAS=true npm run test:contracts` (Git Bash) | 2026-09-28 |
+| 타입 검사 (루트 — src·tests 전체, 산출물 없음) | `npx tsc --noEmit -p tsconfig.json` | 2026-09-28 |
+| 테스트 ③ 단일 파일 (Hardhat 노드 자동 기동 포함) | `npx vitest run --config vitest.integration.config.ts tests/integration/db.test.ts` | 2026-09-28 |

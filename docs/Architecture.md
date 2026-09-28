@@ -32,8 +32,11 @@
 ├─ vitest.integration.config.ts    # 계층 ③ 통합 (tests/integration, Hardhat 노드 자동 기동)
 ├─ .env.example                    # 변수 목록은 "배포 > 환경별 설정"
 ├─ src/
-│  ├─ core/                        # 프레임워크 무의존 (Next·viem·SQLite import 금지, 단 viem의 keccak256/hex 유틸만 허용)
+│  ├─ core/                        # 프레임워크 무의존 (Next·SQLite·openai·viem 클라이언트 import 금지). 허용 import는 "계층 규칙 > core 허용 import" 행 (D-29)
+│  │  ├─ errors.ts                 # AppError{code, message, retryable, cause}
 │  │  ├─ domain/
+│  │  │  ├─ types.ts               # 3절 도메인 타입 (Hex, PolicyValues, VaultStateSnapshot, KilnErrorCode …)
+│  │  │  ├─ intent.ts              # interpretIntentOutcome — Kiln outcome → IntentJudgment
 │  │  │  ├─ reasons.ts             # BlockReason, PendingFlag — Solidity와 1:1
 │  │  │  ├─ fee.ts                 # quoteFee(amount, feeBps)
 │  │  │  ├─ policy.ts              # PolicyValues, Kiln 인자 zod 스키마, 검증
@@ -45,16 +48,18 @@
 │  │     ├─ parsePolicy.ts         # F-01
 │  │     ├─ prepareOwnerAction.ts  # F-02, F-04②, F-05 — 증거 패키지 생성 + 컨트랙트 인자 반환
 │  │     ├─ processSpendRequest.ts # F-03, F-04④, F-06, F-07, F-09 — 에이전트 파이프라인
-│  │     ├─ syncChainEvents.ts     # 이벤트 수집 + 증거 anchor 연결 (F-11)
+│  │     ├─ kilnRecords.ts         # KilnCallResult → kiln_calls 저장·증거 참조 변환 (parsePolicy·processSpendRequest 공용)
+│  │     ├─ syncChainEvents.ts     # 이벤트 증분 수집(pullNewEvents, ADR-0004) + 증거 anchor 연결 (F-11)
 │  │     ├─ verifyTx.ts            # F-12, F-13 공용 재해시·대조
 │  │     ├─ buildReceipt.ts        # F-10
 │  │     └─ buildEfficiencyReport.ts # F-14
 │  ├─ adapters/
-│  │  ├─ kiln/  openaiKilnClient.ts · fakeKilnClient.ts · requestBody.ts · prompts.ts · toolSchemas.ts
+│  │  ├─ kiln/  openaiKilnClient.ts · fakeKilnClient.ts · requestBody.ts · prompts.ts · toolSchemas.ts · types.ts · retryPolicy.ts · thinkStrip.ts
 │  │  ├─ chain/ viemVault.ts · networks.ts · generated/{PolicyVault,MockKRWT}.ts (abi+bytecode, chain:export 산출물, 커밋)
 │  │  └─ db/    sqlite.ts(연결+마이그레이션) · evidenceRepo.ts · kilnCallRepo.ts · spendRequestRepo.ts · chainEventRepo.ts
-│  ├─ config/  env.ts(zod 검증, server-only) · constants.ts · merchants.ts
-│  ├─ server/  container.ts        # 서버 합성 루트 (server-only) — 키 없는 어댑터만 조립
+│  ├─ config/  env.ts(zod 스키마 + 순수 parse 함수만 — server-only·process.env 읽기 없음, ADR-0005) · constants.ts(리터럴만, import 없음) · merchants.ts
+│  ├─ server/  env.ts              # import "server-only" + 키 존재 시 시작 거부 + parseServerEnv(process.env) (ADR-0005)
+│  │           container.ts        # 서버 합성 루트 (server-only) — 키 없는 어댑터만 조립
 │  ├─ app/                         # Next.js App Router (페이지 + Route Handler)
 │  │  ├─ layout.tsx  page.tsx(→ /dashboard 리다이렉트)
 │  │  ├─ delegate/page.tsx  dashboard/page.tsx  audit/page.tsx  efficiency/page.tsx
@@ -64,6 +69,7 @@
 │     ├─ hooks/  useApi.ts
 │     └─ components/ AsyncView.tsx · TxHashLink.tsx · Krw.tsx · ReasonBadge.tsx · NavBar.tsx
 ├─ cli/                            # tsx 실행 스크립트 (키를 쓰는 유일한 프로세스)
+│  ├─ _env.ts                      # .env → .env.cli 로드 + parseCliEnv(process.env) (ADR-0005). src/server/** import 금지
 │  ├─ _container.ts                # CLI 합성 루트 (에이전트/소유자 지갑 포함)
 │  ├─ deploy.ts  e2e.ts  spend.ts  owner-unpause.ts  export-evidence.ts  verify-evidence.ts
 ├─ tests/
@@ -90,18 +96,19 @@ Hardhat 산출물 경로는 `chain/build/artifacts`, `chain/build/cache`로 설�
 |---|---|---|
 | `chain/contracts/PolicyVault.sol` | 정책 보관, 지출의 최종 판정(차단은 이벤트+false), 대기·승인·거절·중지, 증거 해시 이벤트 기록 | OpenZeppelin IERC20/SafeERC20 |
 | `chain/contracts/MockKRWT.sol` | 결제 토큰(decimals 0, 누구나 mint 가능한 테스트 토큰) | OpenZeppelin ERC20 |
-| `src/core/domain` | 순수 규칙: 사유 코드, 수수료, 정책 검증, 사전 검사, 증거 정규화·해시, 이벤트 재생 판정 | 없음 (viem 해시 유틸, zod, canonicalize만) |
+| `src/core/domain` | 순수 규칙: 사유 코드, 수수료, 정책 검증, 사전 검사, 증거 정규화·해시, 이벤트 재생 판정 | "core 허용 import"만 (viem 순수 유틸, zod, canonicalize, `@/config/constants`) — D-29 |
 | `src/core/ports.ts` | 외부 의존 인터페이스 정의 | `core/domain` |
-| `src/core/usecases` | 흐름 조정: 정책 변환, 소유자 액션 준비, 에이전트 지출 파이프라인, 이벤트 동기화, 검증, 영수증, 효율 집계 | `core/domain`, `core/ports` |
+| `src/core/usecases` | 흐름 조정: 정책 변환, 소유자 액션 준비, 에이전트 지출 파이프라인, 이벤트 동기화, 검증, 영수증, 효율 집계 | `core/domain`, `core/ports`, `core/errors`, "core 허용 import" — D-29 |
 | `src/adapters/kiln` | Kiln HTTP 호출(요청 본문 규칙·재시도·usage/헤더 수집), 가짜 구현 | openai SDK, `core/ports` |
 | `src/adapters/chain` | viem으로 PolicyVault 읽기·쓰기·로그 디코드, 네트워크 정의 | viem, `core/ports` |
 | `src/adapters/db` | SQLite 스키마·마이그레이션, Repo 구현 | better-sqlite3, `core/ports` |
-| `src/config` | 환경 변수 검증(서버/CLI 전용), 상수, 가맹점 레지스트리 | zod |
-| `src/server/container.ts` | Route Handler용 의존성 조립 (키 없는 어댑터만) | adapters, config |
+| `src/config` | 환경 변수 스키마·순수 parse(서버·CLI·테스트 공용, 부작용 없음), 상수(리터럴), 가맹점 레지스트리 | zod, `core/domain/types`(merchants.ts만) |
+| `src/server/env.ts` | 서버 프로세스 env 로드: `server-only`, 개인키 존재 시 시작 거부 (ADR-0005) | `config/env` |
+| `src/server/container.ts` | Route Handler용 의존성 조립 (키 없는 어댑터만) | adapters, config, `server/env` |
 | `src/app` (pages) | 4화면 라우팅·레이아웃 | `src/ui` |
 | `src/app/api` | Route Handler: 입력 검증 → 유스케이스 호출 → DTO 직렬화(bigint→문자열) → 에러 매핑 | `server/container`, `core/usecases` |
 | `src/ui` | 지갑 연결·서명, 화면 상태(로딩·빈 값·에러), 재사용 컴포넌트 | viem(브라우저), `core/domain`(reasons, 표시용) |
-| `cli/` | 배포, E2E(계층 ④·데모), 단건 지출, 증거 내보내기, 제3자 검증 | `core/usecases`, adapters, config |
+| `cli/` | 배포, E2E(계층 ④·데모), 단건 지출, 증거 내보내기, 제3자 검증 | `core/usecases`, adapters, config (`src/server/**` 금지 — ADR-0005) |
 
 ## 데이터 흐름
 
@@ -120,6 +127,10 @@ Hardhat 산출물 경로는 `chain/build/artifacts`, `chain/build/cache`로 설�
  → requestId = 랜덤 32바이트
  → state = VaultReader.getState()                      (에이전트 "읽기")
  → pre = evaluatePrecheck(state, req)                   (결정적, 컨트랙트 순서 미러)
+ → policy = 활성 정책 증거 (ADR-0004): pullNewEvents(증분) → ChainEventRepo에서 state.policyVersion의 PolicySet
+            → 그 evidenceHash → EvidenceRepo.findByHash (kind="policy_set") → purpose·delegationText
+            (policyVersion 0 → ZERO_HASH·증거 없음 / 이벤트 없음 → POLICY_EVENT_NOT_FOUND
+             / pass인데 로컬 증거 없음 → POLICY_EVIDENCE_NOT_FOUND — 둘 다 tx 전 throw, 지출 없음)
  ├─ pre.verdict = "block"  → Kiln 호출 0회, judgment = null, agentReviewRequest = true, flow = "rule_block"
  └─ pre.verdict = "pass"   → KilnClient.judgeIntent 1회 → zod 검증
         status "match"                         → agentReviewRequest = false
@@ -207,6 +218,9 @@ struct VaultState {
 | `isAllowedMerchant(address) view returns (bool)` | 누구나 | public mapping getter | — |
 
 `reject`는 PRD에 명시된 함수가 아니다 — 대기 건이 예산을 예약(reserved)하므로 예약을 풀 수단으로 둔다 (D-08, 보고서에서 사용자 확인 요청).
+
+- `InvalidPolicy(uint8 field)` 코드 = `PolicyInput` 필드 순서: 1 budget, 2 approvalThreshold, 3 expiresAt, 4 maxPerMinute, 5 maxPerDay, 6 merchants (D-31).
+- `approve`·`reject`는 `pendingCount -= 1`. `setPolicy`는 분·일 카운터(`minuteBucket/Count`, `dayBucket/Count`)를 리셋하지 않는다 (D-31).
 
 #### `spend` 판정 순서 (TS `evaluatePrecheck`가 같은 순서를 미러 — 패리티 테스트 대상)
 
@@ -303,7 +317,7 @@ function evaluatePrecheck(s: VaultStateSnapshot, r: { merchant: Hex; amount: big
 
 type IntentJudgment = {
   status: "match" | "mismatch" | "invalid_output" | "error";
-  reason: string;          // Kiln 문장(≤200자) 또는 실패 사유 코드
+  reason: string;          // Kiln 문장(≤200자) 또는 실패 사유 코드: invalid_output → NO_TOOL_CALL | WRONG_FUNCTION | INVALID_ARGS, error → KilnErrorCode (D-32)
   kilnCallId: string;
 };
 
@@ -557,6 +571,35 @@ interface SpendRequestRepo { insert(r: SpendRequestRow): void; updateOutcome(req
 interface ChainEventRepo { upsertMany(e: DecodedVaultEvent[], chainId: number, vault: Hex): void; list(chainId: number, vault: Hex): DecodedVaultEvent[];
   findByTx(txHash: Hex): DecodedVaultEvent[]; getSyncBlock(chainId: number, vault: Hex): bigint | null; setSyncBlock(chainId: number, vault: Hex, b: bigint): void; }
 interface Clock { now(): Date }
+
+// --- 2026-09-28 보강 (T-03 구현 보고의 미정의 타입 — D-33) ---
+type TxResult = { txHash: Hex; receipt: { status: "success"|"reverted"; events: DecodedVaultEvent[]; gasUsed: bigint; feeWei: bigint } };
+// AgentVaultWriter.spend 반환형과 동일. feeWei = gasUsed × effectiveGasPrice + (l1Fee ?? 0) — E2E 지갑별 ETH 합계의 입력
+type FlowAggregate = {   // KilnCallRepo.aggregateByFlow 한 행 = kiln_calls를 (chain_id, vault, provider)로 거른 뒤 flow GROUP BY (T-06 사용)
+  flow: "policy_parse" | "intent_judge"; kilnCalls: number /*COUNT(*) — http_error 행 포함*/;
+  promptTokens: number; completionTokens: number; totalTokens: number;   // SUM
+  reasoningTokens: number | null;   // SUM — 전부 NULL이면 null (SQLite SUM 의미 그대로)
+  costUsd: string;                  // String(TOTAL(CAST(cost_usd AS REAL)))
+  latencyMsSum: number;             // 에너지 추정 입력 (latency_ms 합)
+  generationIds: string[];          // NULL 제외, created_at 순
+};
+// ChainEventRepo: args_json 직렬화 시 bigint → {"__bigint":"<10진>"}, 조회 시 bigint로 복원 — reader가 준 DecodedVaultEvent와 같은 타입으로 돌려준다
+// processSpendRequest deps = 현재 구현(chainId, vault, deployBlock, reader, writer, kiln, evidence, kilnCalls, spendRequests, merchants, clock) + chainEvents: ChainEventRepo (ADR-0004)
+function pullNewEvents(d: { reader: VaultReader; chainEvents: ChainEventRepo; chainId: number; vault: Hex; deployBlock: bigint }): Promise<{ newEvents: number; toBlock: bigint }>;
+// from = (getSyncBlock ?? deployBlock − 1) + 1, to = latestBlock(); from > to 이면 0건. getLogs(from,to) → upsertMany(멱등) → setSyncBlock(to).
+// 동시 호출로 커서가 뒤로 가도 다음 호출이 재조회·멱등 upsert하므로 무해. syncChainEvents = pullNewEvents + anchor 연결
+```
+
+#### 배포 파일·네트워크 (`src/adapters/chain/networks.ts`, T-04)
+
+```ts
+type DeploymentFile = {   // deployments/baseSepolia.json(커밋) · data.local/deployments/localhost.json — T-02 LocalDeployment 형식을 network만 넓혀 채택
+  network: "localhost" | "baseSepolia"; chainId: number; token: Hex; vault: Hex; owner: Hex; agent: Hex; feeRecipient: Hex;
+  feeBps: number; vaultMint: string /*10진*/; deployBlock: number;
+};
+const NETWORKS: Record<"localhost"|"baseSepolia", { chainId: 31337|84532; deploymentFile: string; explorerTxUrl: string | null }>;
+// localhost: 31337, "data.local/deployments/localhost.json", null / baseSepolia: 84532, "deployments/baseSepolia.json", "https://sepolia.basescan.org/tx/"
+// RPC는 env RPC_URL. viem chain 객체는 viem/chains의 hardhat·baseSepolia에 RPC_URL을 덮어쓴다
 ```
 
 ### 8. 유스케이스 시그니처
@@ -637,9 +680,10 @@ type EfficiencyReport = {
 
 | 항목 | 결정 |
 |---|---|
-| 의존성 방향 | Domain ← Use case ← Adapter ← Framework (역방향 금지). 구체적으로 `core/domain` ← `core/usecases` ← `adapters/*`, `app/api`, `cli` ← `server/container`, `cli/_container`. `core/**`에서 `next`, `react`, `better-sqlite3`, `openai`, `src/adapters/**` import 금지 |
+| 의존성 방향 | Domain ← Use case ← Adapter ← Framework (역방향 금지). 구체적으로 `core/domain` ← `core/usecases` ← `adapters/*`, `app/api`, `cli` ← `server/container`, `cli/_container`. `core/**`에서 `next`, `react`, `better-sqlite3`, `openai`, `src/adapters/**`, `src/server/**`, `src/config/env`·`src/config/merchants` import 금지 |
+| core 허용 import (D-29) | `zod`, `canonicalize`, viem **순수 유틸만**(`keccak256`, `stringToBytes`, `bytesToHex`, `getAddress` — I/O 없는 함수. `createPublicClient` 등 클라이언트·transport 금지), `@/config/constants`(리터럴만 담고 자신은 아무것도 import하지 않는 모듈 — 값 단일 원본 규칙 유지). 가맹점 목록은 import하지 않고 `deps.merchants`로 주입 |
 | Repository 포트 | `src/core/ports.ts`(7절). 구현은 `src/adapters/db/*`, `src/adapters/chain/viemVault.ts`, `src/adapters/kiln/*`. 유스케이스는 `deps` 객체로 포트를 주입받는다 (클래스 DI 컨테이너 없음 — 합성 루트 함수 2개) |
-| DTO ↔ 도메인 변환 위치 | Route Handler(`src/app/api/**`)와 CLI 인자 파서. bigint↔문자열, 체크섬 주소 변환은 여기서만. DB 행 ↔ 도메인 변환은 Repo 구현 안 |
+| DTO ↔ 도메인 변환 위치 | Route Handler(`src/app/api/**`)와 CLI 인자 파서. 외부 입력의 bigint↔문자열, 주소 형식 검증·체크섬 변환은 여기서만. 예외: 증거 패키지를 만드는 core는 "주소는 JSON에서 체크섬" 규칙을 지키려고 `getAddress`로 정규화한다(D-29). DB 행 ↔ 도메인 변환은 Repo 구현 안 |
 | 순환 의존성 | 금지 |
 
 ## 테스트 전략
@@ -649,7 +693,7 @@ type EfficiencyReport = {
 | 항목 | 결정 |
 |---|---|
 | 테스트 프레임워크 | ① 컨트랙트: Hardhat 2 테스트 러너(mocha+chai, `hardhat-toolbox-viem`) ②③ TS: Vitest (단위·통합 설정 파일 분리) ④ E2E: `cli/e2e.ts`(tsx 실행 스크립트, 단언 실패 시 종료 코드 1) |
-| 테스트 디렉토리 배치 | ① `chain/test/*.test.ts` ② `tests/unit/*.test.ts` ③ `tests/integration/*.test.ts` + `tests/integration/setup/hardhat-node.ts`(globalSetup: `chain/`에서 `npx hardhat node --port 8546` 기동, 포트 응답 대기, 종료 시 kill) ④ `cli/e2e.ts`. 공용 판정 케이스 `tests/fixtures/rule-cases.json`을 ①②가 함께 읽는다(패리티) |
+| 테스트 디렉토리 배치 | ① `chain/test/*.test.ts` ② `tests/unit/*.test.ts` ③ `tests/integration/*.test.ts` + `tests/integration/setup/hardhat-node.ts`(globalSetup: `chain/`에서 `npx hardhat node --port 8546` 기동, 포트 응답 대기, 종료 시 kill. 잠금 파일로 동시 실행을 한 번에 하나씩 돌리고, 자기 노드가 포트를 잡았는지 확인한다) ④ `cli/e2e.ts`. 공용 판정 케이스 `tests/fixtures/rule-cases.json`을 ①②가 함께 읽는다(패리티) |
 | 커버 범위 기준 | 커버리지 % 목표 없음. **PRD 승인 기준 1개당 테스트 1개 이상**을 아래 매핑으로 강제 |
 | Mock/Stub 대상 (외부 의존성) | Kiln → `FakeKilnClient`(②③④-local). 체인 → Mock 없음, 실제 Hardhat 노드(③④-local) / Hardhat 내장 네트워크(①). SQLite → 실제 better-sqlite3, 테스트마다 `:memory:` 또는 임시 파일. 시계 → `Clock` 포트 주입, 체인 시간은 `evm_increaseTime`+`evm_mine` |
 
@@ -695,7 +739,7 @@ docs/PRD.md의 "배포·운영" 항목이 요구사항이라면, 여기는 그 �
 |---|---|
 | 호스팅 / 실행 대상 | 노트북 로컬: `npm run build` 후 `npm run start`(= `next start -H 127.0.0.1 -p 3000`), 개발 중 `npm run dev`(= `next dev -H 127.0.0.1`). 루프백에만 바인딩 — Kiln 크레딧을 쓰는 `/api/policy/parse`에 인증이 없으므로 외부 노출 금지 (D-17). 컨트랙트: Base Sepolia (chainId 84532, 익스플로러 `https://sepolia.basescan.org`) |
 | 빌드·릴리스 파이프라인 | 수동. 순서: `npm run chain:compile`(컴파일 + `chain:export`로 abi·bytecode를 `src/adapters/chain/generated/`에 기록) → `npm test` → `npm run build`. CI 없음(제안 — OQ #14). README에 문서화(docs 에이전트) |
-| 환경과 승격 | 로컬 Hardhat 노드(31337) → Base Sepolia(84532) 2단계. `CHAIN` 변수 하나로 전환. 승격 = `npm run deploy -- --chain baseSepolia`(또는 `e2e:sepolia --deploy`) → `deployments/baseSepolia.json` 커밋 |
+| 환경과 승격 | 로컬 Hardhat 노드(31337) → Base Sepolia(84532) 2단계. `CHAIN` 변수 하나로 전환. 승격 = `npm run deploy -- --chain baseSepolia`(또는 `e2e:sepolia --deploy`) → `deployments/baseSepolia.json` 커밋. 배포 경로는 `cli/deploy.ts`(viem + `generated/` abi·bytecode, `--chain localhost\|baseSepolia`) 하나로 통일 — T-02의 `chain/scripts/deploy-local.ts`·`npm run chain:deploy:local`은 T-04에서 이것으로 대체·제거 (D-30) |
 | 환경별 설정 | 아래 `.env.example` 변수 표. 배포 주소는 env가 아니라 `deployments/baseSepolia.json`(커밋) / `data.local/deployments/localhost.json`(로컬). 브라우저는 env를 읽지 않고 `/api/vault/state`에서 chainId·vault 주소를 받는다 (`NEXT_PUBLIC_*` 변수 없음) |
 | DB·상태 마이그레이션 | SQLite는 앱·CLI 시작 시 `CREATE TABLE IF NOT EXISTS` + `PRAGMA user_version` 확인. 버전 불일치 시 시작 거부 + "delete data.local/app.sqlite and rerun E2E" 안내 (해커톤 기간 중 자동 마이그레이션 없음). 온체인 상태는 불변 — 컨트랙트 변경은 새 배포(새 주소) |
 | 롤백 절차 | 앱: `git revert <커밋>` → `npm run build` → 재시작 (약 3분). 컨트랙트: 이전 주소가 담긴 `deployments/baseSepolia.json`을 git에서 되돌리면 앱이 이전 vault를 가리킨다 (약 1분). 이미 쓰인 온체인 기록·내보낸 증거는 되돌리지 않는다 |
@@ -715,23 +759,32 @@ docs/PRD.md의 "배포·운영" 항목이 요구사항이라면, 여기는 그 �
 | `KILN_THINKING_MODE` | 서버·CLI | `default` | `default` \| `kwargs_off` \| `no_think` |
 | `KILN_MAX_TOKENS_PARSE` | 서버·CLI | `2048` | 500 미만이면 시작 거부 |
 | `KILN_MAX_TOKENS_JUDGE` | 서버·CLI | `1024` | 500 미만이면 시작 거부 |
-| `AGENT_PRIVATE_KEY` | **CLI만** | `0xyour-agent-test-wallet-private-key` | 시크릿. Base Sepolia 배포자 겸 agent. `CHAIN=localhost`면 무시 |
-| `OWNER_PRIVATE_KEY` | **CLI만** (`e2e:sepolia`, `owner-unpause`) | `0xyour-owner-test-wallet-private-key` | 시크릿. 브라우저 지갑과 **같은 테스트 전용 계정**. 서버는 로드하지 않음 |
+| `AGENT_PRIVATE_KEY` | **CLI만** — 파일 **`.env.cli`** (ADR-0005) | `0xyour-agent-test-wallet-private-key` | 시크릿. Base Sepolia 배포자 겸 agent. `CHAIN=localhost`면 무시 |
+| `OWNER_PRIVATE_KEY` | **CLI만** (`e2e:sepolia`, `owner-unpause`) — 파일 **`.env.cli`** (ADR-0005) | `0xyour-owner-test-wallet-private-key` | 시크릿. 브라우저 지갑과 **같은 테스트 전용 계정**. 서버는 로드하지 않음 |
 | `OWNER_ADDRESS` | CLI(deploy) | `0xYourOwnerWalletAddress` | 배포 시 vault owner. OWNER_PRIVATE_KEY와 불일치하면 E2E 시작 거부 |
 | `FEE_RECIPIENT_ADDRESS` | CLI(deploy) | `0xYourFeeRecipientAddress` | 플랫폼 수수료 수령 주소(키 불필요) |
 
-`src/config/env.ts`는 `import "server-only"` + zod 검증. 서버 합성 루트는 `*_PRIVATE_KEY`를 스키마에 포함하지 않는다. CLI는 `process.loadEnvFile(".env")`(Node 22 내장, 파일 없으면 건너뜀)로 로드한다. 테스트(①②③, e2e:local)는 `.env` 없이 돌아야 한다.
+env 모듈 분리 (ADR-0005 — `server-only` 패키지는 `react-server` 조건이 없는 Node(tsx·Vitest)에서 import 즉시 throw하므로 CLI·테스트가 import하는 모듈에 두지 않는다):
+
+| 파일 | 내용 | import하는 쪽 |
+|---|---|---|
+| `src/config/env.ts` | zod 스키마 `serverEnvSchema`(`*_PRIVATE_KEY`·`OWNER_ADDRESS`·`FEE_RECIPIENT_ADDRESS` 없음), `cliEnvSchema`(= server + 그 4개, 전부 optional — `CHAIN=baseSepolia`일 때만 필수로 refine), 순수 함수 `parseServerEnv(src)`·`parseCliEnv(src)`. `server-only` 없음, import 시 `process.env`를 읽지 않음 | `server/env.ts`, `cli/_env.ts`, 단위 테스트 |
+| `src/server/env.ts` | `import "server-only"`. `process.env`에 `AGENT_PRIVATE_KEY` 또는 `OWNER_PRIVATE_KEY`가 있으면 "move private keys to .env.cli" 에러로 시작 거부(D-16 강제). 아니면 `parseServerEnv(process.env)` | `server/container.ts`만 |
+| `cli/_env.ts` | `process.loadEnvFile(".env")` 후 `process.loadEnvFile(".env.cli")`(각각 파일 없으면 건너뜀) → `parseCliEnv(process.env)` | `cli/_container.ts`만 |
+
+- 개인키는 `.env`가 아니라 **`.env.cli`**에 둔다: Next.js는 `.env`·`.env.local`·`.env.[mode]`·`.env.[mode].local`을 서버 `process.env`에 자동 로드하므로 `.env`에 키를 두면 D-16이 깨진다(Next 로드 대상 목록은 추정 — 확인: `npm run dev` 기동 로그의 `Environments:` 줄에 `.env.cli`가 없어야 한다). `.env.cli`는 기존 `.gitignore`의 `.env.*`로 제외된다. `.env.example`에는 두 키를 "`.env.cli`에 넣을 것" 주석과 함께 둔다.
+- 테스트(①②③, e2e:local)는 `.env`·`.env.cli` 없이 돌아야 한다.
 
 ### Base Sepolia ETH 소모 추정 (N-02 ETH 확보 판정용 — 전부 추정)
 
 | 항목 | tx 수 / E2E 1회 | 가스 (추정) | 지불 지갑 |
 |---|---|---|---|
-| 배포 MockKRWT + PolicyVault + mint | 3 | 약 3.3M | agent |
+| 배포 MockKRWT + PolicyVault + mint | 3 | 약 3.92M — **로컬 실측**(T-02, 옵티마이저 꺼짐, 인용). 최초 추정 3.3M 대비 +19% | agent |
 | setPolicy / approve / pause / unpause | 4 | 약 0.45M | owner |
-| spend: 실행 4(2단계 + 7단계 3회), 대기 2, 차단 4 | 10 | 약 1.2M | agent |
-| 합계 | **17** | **약 5M** | agent 약 4.5M, owner 약 0.45M |
+| spend: 실행 4(2단계 + 7단계 3회), 대기 2, 차단 4 | 10 | 약 1.3M — T-02 로컬 테스트 spend 평균 130,173 × 10 (인용, 경로 구성이 E2E와 달라 추정) | agent |
+| 합계 | **17** | **약 5.7M** | agent 약 5.2M, owner 약 0.45M |
 
-- 가스 가격 0.1 gwei 가정(추정 — Base Sepolia는 대개 이보다 낮지만 급등 가능) 시 E2E 1회 ≈ 0.0005 ETH + L1 데이터 수수료. **권장 확보량: agent 0.01 ETH, owner 0.005 ETH** (E2E 재실행·UI 시연 여유 10회분 이상, 추정).
+- 가스 가격 0.1 gwei 가정(추정 — Base Sepolia는 대개 이보다 낮지만 급등 가능) 시 E2E 1회 ≈ 0.0006 ETH + L1 데이터 수수료. 실측 반영 후에도 이어지는 권장 확보량의 1/10 미만이므로 권장량은 유지한다. 옵티마이저는 켜지 않는다 (D-34). **권장 확보량: agent 0.01 ETH, owner 0.005 ETH** (E2E 재실행·UI 시연 여유 10회분 이상, 추정).
 - 확인 방법: 첫 `e2e:sepolia` 실행 로그의 지갑별 `Σ(gasUsed × effectiveGasPrice + l1Fee)` 합계(E2E가 출력). 추정과 2배 이상 다르면 N-02 판정에 실측값을 쓴다.
 - 사전 차단도 tx가 생기므로(ADR-0002) 차단 1건 ≈ 5~7만 가스(추정)가 agent에서 나간다.
 
@@ -741,8 +794,8 @@ docs/PRD.md의 "배포·운영" 항목이 요구사항이라면, 여기는 그 �
 
 | 항목 | 결정 |
 |---|---|
-| 예외를 잡는 위치 | 도메인은 예상된 실패를 **결과값**(`{ok:false, code}`, `PrecheckResult`, `IntentJudgment.status`)으로 반환하고 던지지 않는다. 어댑터는 외부 오류를 `AppError{code, message, retryable, cause}`로 감싸 던진다. 최종 포착은 Route Handler(요청당 try/catch 1개)와 CLI main(종료 코드 1). 유스케이스는 잡지 않고 통과시킨다 — 예외: `processSpendRequest`는 Kiln `AppError`를 잡아 `judgment.status="error"`로 바꿔 대기 경로로 보낸다(D-10) |
-| 실패가 사용자에게 드러나는 방식 | Route Handler가 `AppError.code` → HTTP 상태: `VALIDATION_FAILED`/`SCHEMA_INVALID`/`NO_TOOL_CALL`/`INVALID_ARGS`/`UNKNOWN_MERCHANT`/`EXPIRY_REQUIRED`→400·422, `NOT_OWNER`→403, `NOT_FOUND`→404, `KILN_RATE_LIMITED`→429, `KILN_CREDIT_EXHAUSTED`→402, `KILN_UNAVAILABLE`/`CHAIN_RPC_ERROR`→502, 그 외→500(`INTERNAL`, 메시지 일반화). UI는 코드별 영어 문구 표(`src/ui/errorMessages.ts`)로 표시. 지갑 오류(4001 거절, 잘못된 체인, 컨트랙트 커스텀 에러)는 클라이언트에서 같은 표로 변환 |
+| 예외를 잡는 위치 | 도메인은 예상된 실패를 **결과값**(`{ok:false, code}`, `PrecheckResult`, `IntentJudgment.status`)으로 반환하고 던지지 않는다. 체인·DB 어댑터는 외부 오류를 `AppError{code, message, retryable, cause}`(`src/core/errors.ts`)로 감싸 던진다. **Kiln 어댑터는 예외다 — HTTP·네트워크 실패를 던지지 않고** 재시도 소진 후 `KilnCallResult.outcome = {kind:"http_error", status, code: KilnErrorCode\|null}`로 반환한다(4절, D-32). 유스케이스가 이 반환값을 매핑한다: `processSpendRequest`는 `interpretIntentOutcome`으로 `judgment.status="error"`(reason = 코드) → `agentReviewRequest=true` 대기 경로(D-10), `parsePolicy`는 `{ok:false, code}`. 최종 포착은 Route Handler(요청당 try/catch 1개)와 CLI main(종료 코드 1). 유스케이스는 AppError를 잡지 않고 통과시킨다 — 예외: `processSpendRequest`는 `writer.spend` 실패 시 `spend_requests.outcome="failed"`를 기록한 뒤 다시 던진다 |
+| 실패가 사용자에게 드러나는 방식 | Route Handler가 `AppError.code` → HTTP 상태: `VALIDATION_FAILED`/`SCHEMA_INVALID`/`NO_TOOL_CALL`/`INVALID_ARGS`/`UNKNOWN_MERCHANT`/`EXPIRY_REQUIRED`→400·422, `NOT_OWNER`→403, `NOT_FOUND`→404, `KILN_RATE_LIMITED`→429, `KILN_CREDIT_EXHAUSTED`→402, `KILN_UNAVAILABLE`/`KILN_AUTH`/`KILN_BAD_REQUEST`/`CHAIN_RPC_ERROR`→502, 그 외→500(`INTERNAL`, 메시지 일반화). `POLICY_EVENT_NOT_FOUND`/`POLICY_EVIDENCE_NOT_FOUND`는 `processSpendRequest`(HTTP 경로 없음) 전용 — CLI 종료 코드 1 + 코드 출력. UI는 코드별 영어 문구 표(`src/ui/errorMessages.ts`)로 표시. 지갑 오류(4001 거절, 잘못된 체인, 컨트랙트 커스텀 에러)는 클라이언트에서 같은 표로 변환 |
 | 경계 간 전파 | 컨트랙트 → TS: 정책 위반은 revert가 아니라 이벤트(ADR-0002)이므로 **정상 결과**로 전파. revert(권한·중복 등)만 `CHAIN_TX_REVERTED`. Kiln → 유스케이스: `KilnCallResult.outcome`(throw 안 함, 재시도 소진 후 `http_error`). API → UI: `{ok:false, error:{code,message}}` 한 형태. 스택 트레이스·원본 에러 메시지·RPC URL은 응답에 싣지 않는다 |
 
 ## 관측성

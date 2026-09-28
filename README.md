@@ -27,8 +27,8 @@
 | 영역 | 상태 |
 |---|---|
 | 테스트 하네스 (Next.js 골격, Hardhat, Vitest 단위/통합, 스모크 테스트) | 완료 (T-01) |
-| PolicyVault / Mock ERC20 컨트랙트 | planned (T-02) |
-| 에이전트 코어: 사전 검사 정책 엔진 + Kiln 클라이언트 + 증거 저장 | planned (T-03) |
+| PolicyVault / Mock ERC20 컨트랙트 | 완료 (T-02) |
+| 에이전트 코어: 사전 검사 정책 엔진 + Kiln 클라이언트 + 증거 저장 | 완료 (T-03) |
 | E2E 데모 + 증거 JSON + 제3자 검증 스크립트 | planned (T-04) |
 | UI ① 위임 + ② 대시보드 | planned (T-05) |
 | UI ③ 감사 + ④ 효율 리포트 | planned (T-06) |
@@ -39,33 +39,40 @@
 
 단일 repo, 패키지 2개: 루트(Next.js 앱 + 에이전트 코어 + CLI) / `chain/`(Hardhat 전용). npm workspaces 미사용.
 
-**현재 실제 구조 (T-01 완료 시점, 하네스만 존재):**
+**현재 실제 구조 (T-01~T-03 완료 시점):**
 
 ```
 /                                  # 루트 패키지
 ├─ package.json  tsconfig.json  next.config.ts
 ├─ vitest.config.ts                # 계층 ② 단위 (tests/unit)
-├─ vitest.integration.config.ts    # 계층 ③ 통합 (tests/integration)
+├─ vitest.integration.config.ts    # 계층 ③ 통합 (tests/integration), Hardhat 노드(포트 8546) 자동 기동
 ├─ .env.example                    # 환경 변수 플레이스홀더
-├─ src/app/                        # Next.js App Router 기본 골격 (layout.tsx, page.tsx)
-├─ tests/unit/, tests/integration/ # 스모크 테스트 각 1개
-├─ chain/                          # Hardhat 패키지 (별도 package.json), 컨트랙트는 아직 0개
-│  └─ test/                        # 계층 ① 스모크 테스트 1개
+├─ src/
+│  ├─ app/                         # Next.js App Router 기본 골격 (layout.tsx, page.tsx)
+│  ├─ core/                        # 프레임워크 무의존 도메인·유스케이스 (domain/, usecases/, ports.ts, errors.ts)
+│  ├─ adapters/                    # kiln/ (실제+가짜 클라이언트), chain/ (viemVault.ts, generated/ ABI·bytecode), db/ (SQLite 증거 저장)
+│  └─ config/                      # constants.ts, merchants.ts
+├─ tests/
+│  ├─ unit/                        # 계층 ② — 정책·수수료·의도 판단·사전 검사 등 (84개)
+│  ├─ integration/                 # 계층 ③ — DB·parsePolicy·processSpendRequest (40개) + setup/hardhat-node.ts
+│  └─ fixtures/rule-cases.json     # 컨트랙트·precheck 공용 판정 케이스
+├─ chain/                          # Hardhat 패키지 (별도 package.json)
+│  ├─ contracts/                   # PolicyVault.sol, MockKRWT.sol
+│  ├─ scripts/                     # export-artifacts.ts, deploy-local.ts
+│  └─ test/                        # 계층 ① — PolicyVault·MockKRWT·ruleCases·scripts 테스트 (76개)
+├─ data.local/                     # 로컬 산출물 (배포 주소·SQLite, .gitignore로 제외)
 └─ docs/, .agents/, .claude/       # 규칙·문서
 ```
 
-**목표 구조 (`docs/Architecture.md` "구조 개요" 원문 — T-02~T-06에서 순차 추가, planned):**
+**남은 목표 구조 (`docs/Architecture.md` "구조 개요" 원문 기반 — T-04~T-06에서 순차 추가, planned):**
 
 ```
-├─ src/core/                       # 프레임워크 무의존 도메인·유스케이스 — planned (T-02, T-03)
-├─ src/adapters/                   # kiln/, chain/, db/ — planned (T-02, T-03)
-├─ src/config/, src/server/        # env 검증, 서버 합성 루트 — planned
 ├─ src/ui/                         # 지갑 연동 컴포넌트·훅 — planned (T-05, T-06)
-├─ cli/                            # tsx 실행 스크립트 (키를 쓰는 유일한 프로세스) — planned (T-03, T-04)
-├─ chain/contracts/                # PolicyVault.sol, MockKRWT.sol — planned (T-02)
-├─ deployments/, evidence/         # 배포 주소·증거 JSON — planned (T-04)
-└─ data.local/                     # SQLite·로컬 산출물 (.gitignore로 제외)
+├─ cli/                            # tsx 실행 스크립트 (키를 쓰는 유일한 프로세스) — planned (T-04)
+└─ evidence/                       # 증거 JSON (커밋) — planned (T-04)
 ```
+
+`chain:deploy:local`(위 표)은 T-04에서 `cli/deploy.ts`로 통합될 예정이며 그때 제거된다 (사용자 결정, ADR 대상 아님 — `docs/Tasks.md` T-04 행 D-30 참조).
 
 상세는 `docs/Architecture.md` "구조 개요", 작업별 범위는 `docs/Tasks.md` 참조.
 
@@ -94,10 +101,18 @@ cp .env.example .env
 | 테스트 ① 컨트랙트 (Hardhat) | `npm run test:contracts` | 2026-09-28 |
 | 테스트 ② 단위 (Vitest) | `npm run test:unit` | 2026-09-28 |
 | 테스트 ③ 통합 (Vitest) | `npm run test:int` | 2026-09-28 |
+| ABI·bytecode export (chain/build/artifacts → src/adapters/chain/generated/; `chain:compile`이 컴파일 뒤 자동 호출) | `npm run chain:export` | 2026-09-28 |
+| 로컬 체인 노드 실행 (127.0.0.1:8545, 별도 터미널 — 종료 전까지 점유) | `npm run chain:node` | 2026-09-28 |
+| 로컬 배포 (실행 중인 chain:node에 MockKRWT+PolicyVault 배포, vault에 1,000,000 mint → data.local/deployments/localhost.json) | `npm run chain:deploy:local` | 2026-09-28 |
+| 테스트 ① + 가스 표 (hardhat-gas-reporter, toolbox 내장) | `REPORT_GAS=true npm run test:contracts` (Git Bash) | 2026-09-28 |
+| 타입 검사 (루트 — src·tests 전체, 산출물 없음) | `npx tsc --noEmit -p tsconfig.json` | 2026-09-28 |
+| 테스트 ③ 단일 파일 (Hardhat 노드 자동 기동 포함) | `npx vitest run --config vitest.integration.config.ts tests/integration/db.test.ts` | 2026-09-28 |
+
+통합 테스트(계층 ③)는 포트 8546의 Hardhat 노드 하나를 공유하고, 동시에 여러 번 실행하면 잠금 파일로 직렬화되어 한 번에 하나씩만 돈다(`tests/integration/setup/hardhat-node.ts`).
 
 ## Known issue / 알려진 이슈
 
-컨트랙트가 아직 0개인 현재(T-02 착수 전) `npm run chain:compile`·`npm run test:contracts` 실행 시 "Error writing artifacts definition: ENOENT … chain\build\artifacts\artifacts.d.ts"가 출력되지만 종료 코드는 0이고 테스트는 통과한다(reviewer·quality-assurance 확인, T-01 리뷰 권고 사항). T-02에서 컨트랙트 추가 후 재확인 예정.
+T-01 시점에 있었던 "Error writing artifacts definition: ENOENT … chain\build\artifacts\artifacts.d.ts" 로그는 T-02에서 컨트랙트(`chain/contracts/PolicyVault.sol`, `MockKRWT.sol`)가 추가된 뒤 사라졌다(implementer·quality-assurance 확인, T-02 구현 근거).
 
 ## Development pipeline / 개발 파이프라인
 

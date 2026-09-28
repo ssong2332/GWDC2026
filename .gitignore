@@ -34,3 +34,6 @@ venv/
 .next/
 *.tsbuildinfo
 next-env.d.ts
+
+# 로컬 참고 자료 (제3자 문서 사본·대회 정리본 — 공개 repo 게시 안 함)
+reference/
