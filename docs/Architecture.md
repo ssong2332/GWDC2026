@@ -492,7 +492,7 @@ type Anchor = { txHash: Hex; blockNumber: string; logIndex: number; event: strin
 | H: `keccak256(canonicalize(record.package)) == record.evidenceHash` | 다르면 `HASH_MISMATCH` |
 | A: anchor.txHash 영수증 조회 → status success → vault 주소의 logIndex 로그 디코드 → 이벤트 evidenceHash == 재계산 해시 | `TX_NOT_FOUND` / `EVENT_MISMATCH` |
 | F: 지출 레코드면 이벤트의 requestId·merchant·amount == package.request | `FIELD_MISMATCH` |
-| U: deployBlock부터 vault 로그 전체 조회(청크 10,000블록) → 레코드와 짝이 없는 이벤트 | `UNMATCHED_ONCHAIN_EVENT` |
+| U: deployBlock부터 vault 로그 전체 조회(청크 1,000블록) → 레코드와 짝이 없는 이벤트 | `UNMATCHED_ONCHAIN_EVENT` |
 | R: `replay` — PolicySet부터 순서대로 재생해 각 `SpendExecuted`가 (허용 가맹점 ∧ 누적 spent ≤ budget ∧ 만료 전 ∧ (amount ≤ threshold ∨ 같은 requestId의 `Approved` 존재)) 인지 | `OUT_OF_POLICY` |
 
 출력: 레코드별 표(kind, txHash, 재계산 해시, 온체인 해시, 결과) + 요약 `mismatches: N`. 종료 코드: 0건이면 0, 아니면 1 (F-12 ①②).
@@ -551,7 +551,7 @@ interface VaultReader {
   remainingBudget(): Promise<bigint>;
   getPending(requestId: Hex): Promise<{ merchant: Hex; amount: bigint; fee: bigint; flags: number; status: number; evidenceHash: Hex }>;
   getReceiptEvents(txHash: Hex): Promise<{ status: "success" | "reverted"; blockNumber: bigint; events: DecodedVaultEvent[] } | null>;
-  getLogs(fromBlock: bigint, toBlock: bigint): Promise<DecodedVaultEvent[]>;   // 어댑터가 10,000블록 청크로 나눔
+  getLogs(fromBlock: bigint, toBlock: bigint): Promise<DecodedVaultEvent[]>;   // 어댑터가 1,000블록 청크로 나눔 (공개 RPC eth_getLogs 제한, T-07)
   latestBlock(): Promise<bigint>;
 }
 interface AgentVaultWriter { spend(a: { requestId: Hex; merchant: Hex; amount: bigint; agentReviewRequest: boolean; evidenceHash: Hex }): Promise<{ txHash: Hex; receipt: { status: "success"|"reverted"; events: DecodedVaultEvent[]; gasUsed: bigint; feeWei: bigint } }>; }
