@@ -29,3 +29,8 @@ venv/
 .env.*
 !.env.example
 *.local
+
+
+.next/
+*.tsbuildinfo
+next-env.d.ts

@@ -1,0 +1,20 @@
+{
+  "name": "gwdc2026-chain",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^4.1.2",
+    "@types/node": "^22.20.4",
+    "hardhat": "^2.29.1",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.6.1",
+    "gwdc2026": "file:.."
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "gwdc2026",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1 -p 3000",
+    "chain:compile": "npm --prefix chain run compile",
+    "test:contracts": "npm --prefix chain test",
+    "test:unit": "vitest run",
+    "test:int": "vitest run --config vitest.integration.config.ts",
+    "test": "npm run test:contracts && npm run test:unit && npm run test:int"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "canonicalize": "^5.1.0",
+    "next": "^16.3.6",
+    "openai": "^7.23.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "server-only": "^0.0.1",
+    "viem": "^2.56.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.20.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.2"
+  }
+}

@@ -30,6 +30,12 @@
 
 | 용도 | 명령 (원문) | 검증일 |
 |---|---|---|
-| 빌드 | | |
-| 실행 | | |
-| 테스트 | | |
+| 설치 (루트 — Next 앱·코어·Vitest) | `npm install` | 2026-09-28 |
+| 설치 (chain — Hardhat) | `npm --prefix chain install` | 2026-09-28 |
+| 빌드 (Next.js) | `npm run build` | 2026-09-28 |
+| 빌드 (컨트랙트 컴파일) | `npm run chain:compile` | 2026-09-28 |
+| 실행 (개발 서버, 127.0.0.1:3000) | `npm run dev` | 2026-09-28 |
+| 테스트 (전체: contracts → unit → int) | `npm test` | 2026-09-28 |
+| 테스트 ① 컨트랙트 (Hardhat) | `npm run test:contracts` | 2026-09-28 |
+| 테스트 ② 단위 (Vitest) | `npm run test:unit` | 2026-09-28 |
+| 테스트 ③ 통합 (Vitest) | `npm run test:int` | 2026-09-28 |
