@@ -5,7 +5,7 @@
 
 ## Declared function (one sentence) / 선언한 기능 (한 문장)
 
-> GWDC 2026 챌린지 B 요구사항: "Declare in one sentence, in your README, the function you built." (`reference/HACKATHON_BRIEF.md` "챌린지 요구사항 → 준비할 증거물"). 아래 한 문장을 기준으로 심사한다 — `docs/PRD.md` "한 줄 정의" 원문 그대로.
+> GWDC 2026 챌린지 B 요구사항: "Declare in one sentence, in your README, the function you built." (FuriosaAI × Bricksum Challenge B brief). 아래 한 문장을 기준으로 심사한다 — `docs/PRD.md` "한 줄 정의" 원문 그대로.
 
 **EN:** When an AI agent spends event/club budget on a user's behalf, spending limits are enforced by code and the on-chain `PolicyVault` — never by the AI — and every payment, block, approval, and pause is recorded so a third party can reconstruct it from the record alone.
 
