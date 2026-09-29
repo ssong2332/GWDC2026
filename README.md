@@ -77,6 +77,7 @@
 | 좁은 폭 Tx 해시 한 줄 표시 · 위임 입력 오류 표시 | 완료 (T-09) |
 | GitHub Actions 최소 CI (push·PR마다 `npm test`) | 완료 (T-10) |
 | 에너지 표기: 2장 시나리오 추정 | 완료 (T-12) |
+| Thinking mode A/B 측정 (`intent_judge` 1개 입력 × 3모드 × 3회, 실제 Kiln 9회) | 완료 (T-11) — 결과는 아래 "Thinking mode A/B (T-11)" 참조, 기본값 변경은 사용자 결정 대기(PRD OQ #16) |
 
 작업 단위·근거는 `docs/Tasks.md` 참조.
 
@@ -162,6 +163,8 @@ cp .env.example .env
 | 제3자 검증 (Base Sepolia 공개 RPC 기본값, 읽기 전용 — mismatches 0이면 종료 코드 0) | `npm run evidence:verify -- --file evidence/base-sepolia/evidence.json` | 2026-09-29 |
 | 설치 (루트 — lockfile 기준, CI 검증: GitHub Actions run 36522315216, ubuntu-latest·Node 22.14) | `npm ci` | 2026-09-29 |
 | CI 워크플로 (push·PR마다 자동 — `.github/workflows/test.yml`: `npm ci` → `npm --prefix chain ci` → `npm test`, 수동 실행 명령 아님) | `.github/workflows/test.yml` | 2026-09-29 |
+| Thinking mode A/B 측정 (T-11 — 실제 Kiln 유료 호출 정확히 9회: intent_judge × default·kwargs_off·no_think × 3회, 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/ JSON + stdout Markdown 표) | `npm run measure:thinking` | 2026-09-29 |
+| 테스트 ② 단일 파일 (T-11 측정 스크립트 — 가짜 Kiln, 네트워크 없음) | `npx vitest run tests/unit/thinkingAb.test.ts` | 2026-09-29 |
 
 통합 테스트(계층 ③)는 포트 8546의 Hardhat 노드 하나를 공유하고, 동시에 여러 번 실행하면 잠금 파일로 직렬화되어 한 번에 하나씩만 돈다(`tests/integration/setup/hardhat-node.ts`).
 
@@ -244,6 +247,27 @@ Estimate (assumed), not measured. 2-card scenario: Kiln does not publish how man
 - **불필요한 추론 절감**: 사전검사에서 확정된 요청(위 표 `rule_block` 3건)은 Kiln을 0회 호출했다 — `intent_judge` 흐름의 평균으로 추정하면 약 1,804 토큰·1.4675 Wh(2장 시나리오 추정)를 아꼈다(추정, 위 원문 "Avoided" 줄).
 - **사전검사에서 확정되지 않은 차단은 Kiln을 호출한다 — 호출 폭주 사례 1건**: `run-2026-09-28T14-44-28-469Z.json`의 step 7(동시 4건 중 1건)은 `precheckAgreed: false`, `kilnCalls: 1`(616 tokens)이었다. 사전검사는 통과해 Kiln 판단을 받았지만 온체인에서 `SpendBlocked` reason 4(`RATE_LIMIT_MINUTE`)로 차단됐다 — 동시 요청은 사전검사 시점에 분당 한도 초과가 확정되지 않을 수 있다(추정 — 확인 방법: step 7 요청들의 사전검사 기록 비교). 이 1건은 위 `rule_block` 3건에 포함되지 않는다.
 
+### Thinking mode A/B (T-11)
+
+Qwen3의 reasoning(thinking) 토큰을 끄는 방법이 실제로 통하는지 Kiln `qwen3-32b`에 같은 요청을 3가지 모드로 보내 측정했다. 수치는 결과 파일 `evidence/thinking-ab/thinking-ab-2026-09-29T05-44-54-668Z.json`의 `summary` 원문이다.
+
+- 측정 조건: `intent_judge` 흐름, 고정 입력 1개(purpose "Event expenses", 가맹점 Daiso, 30000, "Balloons and table decorations for the welcome party"), 모델 `qwen3-32b`, 모드 3개(`default` / `kwargs_off` / `no_think`) × 3회 = 실제 Kiln 요청 9회(전부 HTTP 200, 재시도·중단 없음), 2026-09-29 실행, 라운드로빈 순서.
+- 모드별 평균 (3회) — 괄호는 `default` 대비 절감률(결과 파일 `*SavingsPct`):
+
+| mode | prompt | completion | reasoning | total | latency (ms) |
+|---|---:|---:|---:|---:|---:|
+| default | 352 | 279.7 | 227 | 631.7 | 5952.3 |
+| kwargs_off | 356 | 42 (-85%) | 0 (-100%) | 398 (-37%) | 1159 (-80.5%) |
+| no_think | 356 | 44 (-84.3%) | 1 (-99.6%) | 400 (-36.7%) | 1087.7 (-81.7%) |
+
+- 판단 결과: 3개 모드 9회 모두 `match`로 동일(`judgmentsAgree: true`).
+- 재현: `npm run measure:thinking` — **실제 유료 Kiln 호출이 정확히 9회 발생한다**(실패 시 재시도 없이 중단). `.env`의 `KILN_API_KEY`가 필요하다.
+- 한계:
+  - 모드당 3회 소표본이다 — 통계적 일반화는 못 한다. 입력도 1개뿐이다.
+  - 지연에는 프롬프트 캐시 영향이 섞였을 수 있다(추정 — 9건 중 8건에서 `cachedTokens` 351~355, `no_think` 1회차만 58). 확인 방법: 캐시가 비었을 때와 찬 상태를 나눠 재측정한다. 토큰 수 비교에는 영향이 없다.
+  - `no_think`의 reasoning 토큰 1(3회 모두)은 원인을 확인하지 못했다(추정 — 모드 지시 문구 자체의 토큰일 수 있음, 확인 방법: 응답 원문 대조).
+  - Base Sepolia 제출 증거(위 표)는 `default` 모드로 실행됐고, `KILN_THINKING_MODE` 기본값은 아직 `default`다 — 바꿀지는 사용자 결정 대기(PRD Open Question #16).
+
 ## Verify it yourself (third party) / 제3자 직접 검증
 
 키·DB·운영자 없이 공개 RPC만으로 검증할 수 있다:
@@ -271,7 +295,7 @@ npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
 - 지갑 서명 UI는 통합 테스트(`tests/integration/walletOwnerAction.test.ts` 등)로만 검증했다 — 실제 MetaMask 등 브라우저 확장에서의 서명 흐름은 자동 검증되지 않았다(T-05 구현 근거, 인용).
 - 효율 리포트의 에너지 수치는 추정(assumed)이지 측정값이 아니다 — 위 "Efficiency" 절의 가정·출처 참조.
 - Base Sepolia 공개 RPC(`sepolia.base.org`)는 `eth_getLogs`를 1,000블록 범위로 제한한다(-32614) — `src/config/constants.ts`의 `LOG_BLOCK_CHUNK = 1_000n`으로 청크를 나눠 대응했다(T-07).
-- Qwen3 thinking 모드를 끄는 방법의 효과는 검증하지 못했다(추정). `KILN_THINKING_MODE` 플래그(`default` | `kwargs_off` | `no_think`)는 있지만 Base Sepolia 실행은 `default`로 동작했고, `npm run report:efficiency` 출력 total 행에 reasoning 토큰 1,864가 포함돼 있다(`.env.example` 22-23행 주석, PRD Open Question #3). 확인 방법: 같은 요청을 켜고/끄고 보내 reasoning 토큰 수를 비교한다.
+- Qwen3 thinking 모드를 끄는 방법의 효과는 T-11에서 측정했다(위 "Thinking mode A/B (T-11)" 소절 참조 — `kwargs_off`·`no_think` 모두 reasoning 토큰 제거, 판단 9/9 match). 남은 한계: ① 기본값 `KILN_THINKING_MODE`는 아직 `default`다 — 바꿀지는 사용자 결정 대기(PRD Open Question #16). Base Sepolia 제출 증거의 reasoning 토큰 1,864(`npm run report:efficiency` total 행)는 `default` 모드 실행분이다. ② 측정은 `intent_judge` 1개 입력, 모드당 3회 소표본이다.
 - 웹 접근성은 label·aria 연결만 리뷰에서 확인했다 — 명도 대비와 키보드 포커스 순서는 수치로 측정하지 않았다(QA 미검증 항목).
 - 공개 RPC 잔여 위험(추정, 이번 실제 실행에서는 나타나지 않음): 부하분산된 공개 RPC의 뒤처진 노드가 ① `getLogs` 범위를 조용히 잘라 이벤트를 놓치거나 ② 연속 tx에서 nonce를 늦게 읽어 "nonce too low"를 내거나 ③ `readContract`(`getState`·`getPending`)가 오래된 상태를 돌려줄 수 있다. 전용 RPC를 쓰면 완화된다(T-07 implementer 보고, reviewer 권고 — 인용).
 - Next.js 16의 `next dev`/`next build`가 루트 `AGENTS.md`를 자동으로 덧붙이는 문제가 있다 — 아래 "Known issue" 절 참조.
