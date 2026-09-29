@@ -62,7 +62,6 @@
 
 - 정산 자산은 vault가 보유한 ERC20(`MockKRWT`)이고, 정산은 `spend()`/`approve()` 안에서만 일어난다. AI(Kiln)는 체인 상태를 읽지도 쓰지도 않는다 — 온체인 인자는 `agentReviewRequest`(불리언) 하나로만 반영된다 (`processSpendRequest.ts:96-111, 170`).
 - 웹 서버는 개인키를 갖지 않는다: `AGENT_PRIVATE_KEY`/`OWNER_PRIVATE_KEY`가 있으면 시작을 거부한다 (`src/server/env.ts:7`, D-16). 에이전트 `spend()` 서명은 CLI(`cli/e2e.ts:146`)에서만 일어난다.
-- 미확인(추정 아님, 확인 안 함): `getPending()`(`PolicyVault.sol:294`, `viemVault.ts:96`)은 리더 포트에 있으나 `src/`·`cli/`에서 호출하는 곳을 찾지 못했다 — 위 표에는 넣지 않았다.
 
 ## Status / 구현 상태
 
