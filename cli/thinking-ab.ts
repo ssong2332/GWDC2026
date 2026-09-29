@@ -277,26 +277,35 @@ function usageOf(mode: ThinkingMode, run: number, rec: JudgeResult["record"]): O
     };
 }
 
-/** Runs the A/B (round-robin: run 1 = default, kwargs_off, no_think, then run 2, …), saves the raw JSON, returns the table. */
-export async function measureThinkingAb(o: MeasureOptions): Promise<MeasureResult> {
+/**
+ * The intent_judge loop shared by T-11 and T-18: round-robin over `modes` × RUNS_PER_MODE through one guard
+ * (hard cap = modes × runs, the first failure halts, no retries). `logExtra` is prepended to each call's log line.
+ */
+async function runJudgeAb(
+    o: MeasureOptions,
+    modes: readonly ThinkingMode[],
+    input: JudgeInput,
+    logExtra: Record<string, unknown> = {},
+): Promise<{ samples: AbSample[]; stopped: Stopped | null; startedAt: string; finishedAt: string; budget: number; sent: number }> {
     const now = o.now ?? (() => new Date());
     const log = o.log ?? ((line: string) => console.log(line));
     const logJson = (event: string, fields: Record<string, unknown>) =>
         log(JSON.stringify({ ts: now().toISOString(), level: "info", event, ...fields }));
-    const budget = THINKING_MODES.length * RUNS_PER_MODE;
+    const budget = modes.length * RUNS_PER_MODE;
     const guard = createRequestGuard(budget, o.fetch ?? globalThis.fetch);
-    const clients = guardedClients(o, guard, THINKING_MODES, o.maxTokensJudge, now);
+    const clients = guardedClients(o, guard, modes, o.maxTokensJudge, now);
 
     const startedAt = now().toISOString();
     const samples: AbSample[] = [];
     let stopped: Stopped | null = null;
     outer: for (let run = 1; run <= RUNS_PER_MODE; run++) {
-        for (const mode of THINKING_MODES) {
+        for (const mode of modes) {
             const sentBefore = guard.sent();
-            const r = withHalt(await clients.get(mode)!.judgeIntent(AB_JUDGE_INPUT), guard.halt(), guard.sent() - sentBefore);
+            const r = withHalt(await clients.get(mode)!.judgeIntent(input), guard.halt(), guard.sent() - sentBefore);
             const s = toSample(mode, run, r);
             samples.push(s);
             logJson("thinking_ab.call", {
+                ...logExtra,
                 mode,
                 run,
                 httpStatus: s.httpStatus,
@@ -315,7 +324,12 @@ export async function measureThinkingAb(o: MeasureOptions): Promise<MeasureResul
             }
         }
     }
-    const finishedAt = now().toISOString();
+    return { samples, stopped, startedAt, finishedAt: now().toISOString(), budget, sent: guard.sent() };
+}
+
+/** Runs the A/B (round-robin: run 1 = default, kwargs_off, no_think, then run 2, …), saves the raw JSON, returns the table. */
+export async function measureThinkingAb(o: MeasureOptions): Promise<MeasureResult> {
+    const { samples, stopped, startedAt, finishedAt, budget, sent } = await runJudgeAb(o, THINKING_MODES, AB_JUDGE_INPUT);
 
     const summary = samples.length > 0 ? summarizeAb(samples) : null;
     const markdown = summary ? formatAbMarkdown(summary) : "(no samples)";
@@ -331,7 +345,7 @@ export async function measureThinkingAb(o: MeasureOptions): Promise<MeasureResul
         runsPerMode: RUNS_PER_MODE,
         order: "round-robin (run 1: default, kwargs_off, no_think; then run 2, run 3)",
         httpRequestBudget: budget,
-        httpRequestsSent: guard.sent(),
+        httpRequestsSent: sent,
         retryPolicy: "none — the first failed request halts the run",
         startedAt,
         finishedAt,
@@ -341,7 +355,113 @@ export async function measureThinkingAb(o: MeasureOptions): Promise<MeasureResul
         summary,
     };
     fs.writeFileSync(filePath, `${JSON.stringify(file, null, 2)}\n`, "utf8");
-    return { filePath, summary, markdown, stopped, httpRequests: guard.sent() };
+    return { filePath, summary, markdown, stopped, httpRequests: sent };
+}
+
+// ---- T-18 / F-16 ⑥: intent_judge "purpose mismatch" case — default vs no_think × 3 runs = 6 real requests ----
+//   npm run measure:thinking -- --flow intent_judge --case mismatch
+// Same guard (hard cap 6, the first failure halts, no retries). The input is the submitted Base Sepolia run's step 5
+// (SpendPending flags 2 — the AI judged the purchase outside the purpose). Gate: no_think 3/3 "mismatch" = pass.
+// Recorded only — the default thinking mode is not changed here.
+
+export type JudgeCase = "fit" | "mismatch";
+
+/** --case value → case. No value keeps the T-11 run (the purpose-fit purchase). */
+export function parseCaseArg(v: string | undefined): JudgeCase {
+    if (v === undefined || v === "fit") return "fit";
+    if (v === "mismatch") return "mismatch";
+    throw new RangeError(`unknown --case ${JSON.stringify(v)} (expected fit or mismatch)`);
+}
+
+export const MISMATCH_AB_MODES: readonly ThinkingMode[] = ["default", "no_think"];
+export const MISMATCH_AB_SCHEMA = "thinking-ab-mismatch/v1";
+
+/**
+ * e2e step 5 (cli/e2e.ts — daiso, 15,000, "Personal gaming mouse") under the demo policy, exactly as judged on Base
+ * Sepolia: evidence/base-sepolia/evidence.json requestId 0x35f42c26… (request + judgment "mismatch") and its policy_set
+ * record (final.purpose, delegationText, merchant displayName).
+ */
+export const AB_MISMATCH_INPUT: JudgeInput = {
+    purpose: "Event expenses",
+    delegationText: AB_JUDGE_INPUT.delegationText,
+    merchantName: daiso.displayName,
+    amount: 15_000n,
+    itemDescription: "Personal gaming mouse",
+};
+
+const MISMATCH_INPUT_SOURCE =
+    "evidence/base-sepolia/evidence.json — spend_request requestId 0x35f42c26de1c33fdabed31a554fd64fc02c394f08af78f4e41d95de15e8543c3 (e2e step 5, SpendPending flags 2, judgment mismatch) + its policy_set record; cli/e2e.ts step 5";
+
+export type MismatchGateResult = "pass" | "fail" | "undetermined";
+export type MismatchGate = { result: MismatchGateResult; noThinkJudgments: string[]; defaultJudgments: string[]; rule: string };
+
+const MISMATCH_GATE_RULE =
+    "pass = no_think runs 1..3 all answered 2xx with judgment mismatch; fail = any no_think judgment match; undetermined = a no_think run missing, failed or undecidable (invalid_output/error). default is recorded, not gating. Recorded only.";
+
+/** Gate for the mismatch case: only the no_think runs decide (a match anywhere in them is a fail). */
+export function judgeMismatchGate(samples: AbSample[], runsPerMode: number = RUNS_PER_MODE): MismatchGate {
+    if (samples.length === 0) throw new RangeError("no samples to gate");
+    for (const s of samples)
+        if (!MISMATCH_AB_MODES.includes(s.mode)) throw new RangeError(`unknown thinking mode for the mismatch case: ${String(s.mode)}`);
+    const runsOf = (m: ThinkingMode) => samples.filter((s) => s.mode === m).sort((a, b) => a.run - b.run);
+    const nt = runsOf("no_think");
+    const noThinkJudgments = nt.map((s) => s.judgment);
+    const defaultJudgments = runsOf("default").map((s) => s.judgment);
+    const complete = nt.length === runsPerMode && nt.every((s, i) => s.run === i + 1);
+    const result: MismatchGateResult = noThinkJudgments.includes("match")
+        ? "fail"
+        : complete && nt.every((s) => isOk(s) && s.judgment === "mismatch")
+          ? "pass"
+          : "undetermined";
+    return { result, noThinkJudgments, defaultJudgments, rule: MISMATCH_GATE_RULE };
+}
+
+export type MismatchAbSample = AbSample & { agentReviewRequest: boolean };
+export type MismatchMeasureResult = MeasureResult & { gate: MismatchGate };
+
+/** Runs the mismatch-case A/B (round-robin: run 1 = default, no_think, then run 2, …), saves the raw JSON, returns table + gate. */
+export async function measureMismatchAb(o: MeasureOptions): Promise<MismatchMeasureResult> {
+    const { samples: raw, stopped, startedAt, finishedAt, budget, sent } = await runJudgeAb(o, MISMATCH_AB_MODES, AB_MISMATCH_INPUT, {
+        flow: "intent_judge",
+        case: "mismatch",
+    });
+    // Same rule as processSpendRequest: anything but "match" sets agentReviewRequest (→ SpendPending flag 2).
+    const samples: MismatchAbSample[] = raw.map((s) => ({ ...s, agentReviewRequest: s.judgment !== "match" }));
+
+    const summary = samples.length > 0 ? summarizeAb(samples) : null;
+    const gate = samples.length > 0 ? judgeMismatchGate(samples) : { result: "undetermined" as const, noThinkJudgments: [], defaultJudgments: [], rule: MISMATCH_GATE_RULE };
+    const markdown = [
+        summary ? formatAbMarkdown(summary) : "(no samples)",
+        "",
+        `Gate: ${gate.result.toUpperCase()} — no_think: ${gate.noThinkJudgments.join(", ") || "-"} / default: ${gate.defaultJudgments.join(", ") || "-"}`,
+        `Gate rule: ${gate.rule}`,
+    ].join("\n");
+    fs.mkdirSync(o.outDir, { recursive: true });
+    const filePath = path.join(o.outDir, `thinking-ab-intent_judge-mismatch-${startedAt.replace(/[:.]/g, "-")}.json`);
+    const file = {
+        schema: MISMATCH_AB_SCHEMA,
+        task: "T-18",
+        flow: "intent_judge",
+        case: "mismatch",
+        model: o.model,
+        maxTokensJudge: o.maxTokensJudge,
+        modes: MISMATCH_AB_MODES,
+        runsPerMode: RUNS_PER_MODE,
+        order: "round-robin (run 1: default, no_think; then run 2, run 3)",
+        httpRequestBudget: budget,
+        httpRequestsSent: sent,
+        retryPolicy: "none — the first failed request halts the run",
+        startedAt,
+        finishedAt,
+        input: { ...AB_MISMATCH_INPUT, amount: AB_MISMATCH_INPUT.amount.toString() },
+        inputSource: MISMATCH_INPUT_SOURCE,
+        stopped,
+        samples,
+        summary,
+        gate,
+    };
+    fs.writeFileSync(filePath, `${JSON.stringify(file, null, 2)}\n`, "utf8");
+    return { filePath, summary, markdown, stopped, httpRequests: sent, gate };
 }
 
 // ---- T-14 / F-16 ④: policy_parse flow — default vs no_think × 3 runs = 6 real requests ----
@@ -573,8 +693,10 @@ export async function measurePolicyAb(o: PolicyMeasureOptions): Promise<PolicyMe
 }
 
 async function main(): Promise<number> {
-    const { values } = parseArgs({ options: { out: { type: "string" }, flow: { type: "string" } } });
+    const { values } = parseArgs({ options: { out: { type: "string" }, flow: { type: "string" }, case: { type: "string" } } });
     const flow = parseFlowArg(values.flow);
+    const judgeCase = parseCaseArg(values.case);
+    if (flow !== "intent_judge" && values.case !== undefined) throw new AppError("VALIDATION_FAILED", "--case applies to --flow intent_judge only");
     // Only .env (the Kiln variables live there, .env.example) — wallet keys in .env.cli are not needed here.
     loadEnvFiles({ files: [".env"] });
     const env = parseServerEnv({ ...process.env, KILN_MODE: "real" });
@@ -594,6 +716,23 @@ async function main(): Promise<number> {
         console.log(`\nraw: ${path.relative(process.cwd(), p.filePath)}`);
         if (p.stopped) {
             console.error(JSON.stringify({ ts: new Date().toISOString(), level: "error", event: "thinking_ab.stopped", ...p.stopped }));
+            return 1;
+        }
+        return 0;
+    }
+    if (judgeCase === "mismatch") {
+        const m = await measureMismatchAb({
+            apiKey: env.kiln.apiKey,
+            baseURL: env.kiln.baseUrl,
+            model: env.kiln.model,
+            maxTokensJudge: env.kiln.maxTokensJudge,
+            outDir: path.resolve(values.out ?? "evidence/thinking-ab"),
+        });
+        console.log(`\nThinking mode A/B — intent_judge (mismatch case, e2e step 5), model ${env.kiln.model}, ${m.httpRequests} HTTP requests`);
+        console.log(m.markdown);
+        console.log(`\nraw: ${path.relative(process.cwd(), m.filePath)}`);
+        if (m.stopped) {
+            console.error(JSON.stringify({ ts: new Date().toISOString(), level: "error", event: "thinking_ab.stopped", ...m.stopped }));
             return 1;
         }
         return 0;

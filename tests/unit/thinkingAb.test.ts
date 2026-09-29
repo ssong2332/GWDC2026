@@ -4,15 +4,20 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     AB_JUDGE_INPUT,
+    AB_MISMATCH_INPUT,
     AB_POLICY_INPUT,
+    MISMATCH_AB_MODES,
     POLICY_AB_MODES,
     THINKING_MODES,
     comparePolicyFields,
     createRequestGuard,
     formatAbMarkdown,
     formatPolicyFieldTable,
+    judgeMismatchGate,
+    measureMismatchAb,
     measurePolicyAb,
     measureThinkingAb,
+    parseCaseArg,
     parseFlowArg,
     savingsPct,
     summarizeAb,
@@ -159,8 +164,9 @@ const KEY = "sk-test-key-must-not-leak-0123456789";
 
 type Seen = { body: Record<string, unknown>; auth: string | null };
 
-/** statusFor(i): HTTP status for the i-th request (1-based); "network" throws, "garbled" is a 200 with an unparseable body. */
-function fakeKiln(statusFor: (i: number) => number | "network" | "garbled" = () => 200) {
+/** statusFor(i): HTTP status for the i-th request (1-based); "network" throws, "garbled" is a 200 with an unparseable body.
+ *  fitsFor(i): the fits_purpose answer of the i-th request (default true — T-18 passes false for the mismatch case). */
+function fakeKiln(statusFor: (i: number) => number | "network" | "garbled" = () => 200, fitsFor: (i: number) => boolean = () => true) {
     const seen: Seen[] = [];
     const fetch = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
         const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
@@ -184,7 +190,7 @@ function fakeKiln(statusFor: (i: number) => number | "network" | "garbled" = () 
                         message: {
                             role: "assistant",
                             content: null,
-                            tool_calls: [{ id: "t", type: "function", function: { name: "submit_intent_judgment", arguments: '{"fits_purpose": true, "reason": "ok"}' } }],
+                            tool_calls: [{ id: "t", type: "function", function: { name: "submit_intent_judgment", arguments: JSON.stringify({ fits_purpose: fitsFor(i), reason: fitsFor(i) ? "ok" : "not an event expense" }) } }],
                         },
                     },
                 ],
@@ -557,5 +563,151 @@ describe("measurePolicyAb (fake Kiln)", () => {
         expect(k.seen[0].auth).toBe(`Bearer ${KEY}`);
         expect(logs.length).toBeGreaterThan(0);
         for (const text of [fs.readFileSync(r.filePath, "utf8"), r.markdown, r.fieldTable, JSON.stringify(r.stopped), ...logs]) expect(text).not.toContain(KEY);
+    });
+});
+
+// ---- T-18 / F-16 ⑥: intent_judge "purpose mismatch" case (default vs no_think × 3 runs = 6 real requests) ----
+
+describe("AB_MISMATCH_INPUT (the submitted evidence's step 5 judge input, verbatim)", () => {
+    it("equals the Base Sepolia evidence package of step 5 (SpendPending flags 2) and its active policy", () => {
+        type Rec = { kind: string; evidenceHash: string; package: Record<string, any> };
+        const exp = JSON.parse(fs.readFileSync(path.resolve("evidence/base-sepolia/evidence.json"), "utf8")) as { records: Rec[] };
+        const step5 = exp.records.find((r) => r.package.requestId === "0x35f42c26de1c33fdabed31a554fd64fc02c394f08af78f4e41d95de15e8543c3")!;
+        expect(step5.package.judgment.status).toBe("mismatch");
+        expect(step5.package.submission.agentReviewRequest).toBe(true);
+        const pol = exp.records.find((r) => r.kind === "policy_set" && r.evidenceHash === step5.package.policyEvidenceHash)!;
+        const merchant = pol.package.final.merchants.find((m: { id: string }) => m.id === step5.package.request.merchantId);
+        expect(AB_MISMATCH_INPUT).toEqual({
+            purpose: pol.package.final.purpose,
+            delegationText: pol.package.delegationText,
+            merchantName: merchant.displayName,
+            amount: BigInt(step5.package.request.amount),
+            itemDescription: step5.package.request.itemDescription,
+        });
+        expect(AB_MISMATCH_INPUT).toMatchObject({ merchantName: "Daiso", amount: 15_000n, itemDescription: "Personal gaming mouse", purpose: "Event expenses" });
+    });
+});
+
+describe("parseCaseArg (no --case keeps the T-11 run)", () => {
+    it("undefined/fit → fit, mismatch → mismatch, anything else → RangeError", () => {
+        expect(parseCaseArg(undefined)).toBe("fit");
+        expect(parseCaseArg("fit")).toBe("fit");
+        expect(parseCaseArg("mismatch")).toBe("mismatch");
+        expect(() => parseCaseArg("mis")).toThrow(/case/);
+    });
+});
+
+const jSample = (mode: AbSample["mode"], run: number, over: Partial<AbSample> = {}) => sample({ mode, run, judgment: "mismatch", ...over });
+const sixJudge = (patch: (mode: AbSample["mode"], run: number) => Partial<AbSample> = () => ({})) =>
+    MISMATCH_AB_MODES.flatMap((mode) => [1, 2, 3].map((run) => jSample(mode, run, patch(mode, run))));
+
+describe("judgeMismatchGate (no_think 3/3 mismatch = pass)", () => {
+    it("normal: no_think 3/3 mismatch → pass (default's answers recorded but not gating)", () => {
+        const g = judgeMismatchGate(sixJudge((m, r) => (m === "default" && r === 2 ? { judgment: "match" } : {})));
+        expect(g.result).toBe("pass");
+        expect(g.noThinkJudgments).toEqual(["mismatch", "mismatch", "mismatch"]);
+        expect(g.defaultJudgments).toEqual(["mismatch", "match", "mismatch"]);
+    });
+    it("boundary: one no_think match → fail", () => {
+        const g = judgeMismatchGate(sixJudge((m, r) => (m === "no_think" && r === 3 ? { judgment: "match" } : {})));
+        expect(g.result).toBe("fail");
+        expect(g.noThinkJudgments).toEqual(["mismatch", "mismatch", "match"]);
+    });
+    it("boundary: a no_think invalid_output (undecidable) → undetermined", () => {
+        expect(judgeMismatchGate(sixJudge((m, r) => (m === "no_think" && r === 1 ? { judgment: "invalid_output" } : {}))).result).toBe("undetermined");
+    });
+    it("error: missing no_think run or an HTTP failure → undetermined", () => {
+        expect(judgeMismatchGate(sixJudge().slice(0, 5)).result).toBe("undetermined");
+        expect(judgeMismatchGate(sixJudge((m, r) => (m === "no_think" && r === 2 ? { httpStatus: 429, judgment: "error" } : {}))).result).toBe("undetermined");
+    });
+    it("error: no samples or an unknown mode → RangeError", () => {
+        expect(() => judgeMismatchGate([])).toThrow(RangeError);
+        expect(() => judgeMismatchGate([jSample("kwargs_off", 1)])).toThrow(/mode/);
+    });
+});
+
+describe("measureMismatchAb (fake Kiln)", () => {
+    it("default/no_think × 3 = exactly 6 requests round-robin with the step 5 input, file saved, gate pass", async () => {
+        const k = fakeKiln(undefined, () => false);
+        const r = await measureMismatchAb(opts(k.fetch, []));
+
+        expect(MISMATCH_AB_MODES).toEqual(["default", "no_think"]);
+        expect(k.seen).toHaveLength(6);
+        expect(r.httpRequests).toBe(6);
+        expect(r.stopped).toBeNull();
+        const noThink = (b: Record<string, unknown>) => JSON.stringify(b.messages).includes("/no_think");
+        expect(k.seen.map((s) => (noThink(s.body) ? "no_think" : "default"))).toEqual(["default", "no_think", "default", "no_think", "default", "no_think"]);
+        for (const s of k.seen) {
+            expect(s.body.chat_template_kwargs).toBeUndefined();
+            const user = (s.body.messages as { content: string }[])[1].content;
+            expect(user).toContain("Item: Personal gaming mouse");
+            expect(user).toContain("Amount (KRW): 15000");
+            expect(user).toContain("Merchant: Daiso");
+        }
+        expect(r.gate.result).toBe("pass");
+        expect(r.summary!.modes.map((m) => m.mode)).toEqual(["default", "no_think"]);
+        expect(r.markdown).toMatch(/Gate: PASS/);
+
+        const saved = JSON.parse(fs.readFileSync(r.filePath, "utf8"));
+        expect(path.basename(r.filePath)).toMatch(/^thinking-ab-intent_judge-mismatch-/);
+        expect(saved).toMatchObject({ task: "T-18", flow: "intent_judge", case: "mismatch", httpRequestBudget: 6, httpRequestsSent: 6, modes: ["default", "no_think"] });
+        expect(saved.input).toEqual({ ...AB_MISMATCH_INPUT, amount: "15000" });
+        expect(saved.inputSource).toContain("evidence/base-sepolia/evidence.json");
+        expect(saved.samples).toHaveLength(6);
+        expect(saved.samples[0]).toMatchObject({
+            mode: "default",
+            run: 1,
+            generationId: "gen-1",
+            reasoningTokens: 250,
+            judgment: "mismatch",
+            reason: "not an event expense",
+            agentReviewRequest: true,
+        });
+        expect(saved.gate.result).toBe("pass");
+    });
+
+    it("a no_think run answering match (request 4 = no_think run 2) → gate fail; that sample has agentReviewRequest false", async () => {
+        const k = fakeKiln(undefined, (i) => i === 4);
+        const r = await measureMismatchAb(opts(k.fetch, []));
+        expect(k.seen).toHaveLength(6);
+        expect(r.gate).toMatchObject({ result: "fail", noThinkJudgments: ["mismatch", "match", "mismatch"] });
+        const saved = JSON.parse(fs.readFileSync(r.filePath, "utf8"));
+        expect(saved.samples[3]).toMatchObject({ mode: "no_think", run: 2, judgment: "match", agentReviewRequest: false });
+    });
+
+    it("error: 429 on the 3rd request → stops after 3 real requests, no retry, gate undetermined", async () => {
+        const k = fakeKiln((i) => (i === 3 ? 429 : 200), () => false);
+        const r = await measureMismatchAb(opts(k.fetch, []));
+        expect(k.seen).toHaveLength(3);
+        expect(r.httpRequests).toBe(3);
+        expect(r.stopped).toMatchObject({ mode: "default", run: 2, httpStatus: 429, code: "KILN_RATE_LIMITED" });
+        expect(r.gate.result).toBe("undetermined");
+        const saved = JSON.parse(fs.readFileSync(r.filePath, "utf8"));
+        expect(saved.samples[2]).toMatchObject({ httpStatus: 429, attempts: 1, judgment: "error" });
+    });
+
+    it(
+        "error: 2xx with an unparseable body on the 2nd request → halts after 2 real requests, gate undetermined",
+        async () => {
+            const k = fakeKiln((i) => (i === 2 ? "garbled" : 200), () => false);
+            const r = await measureMismatchAb(opts(k.fetch, []));
+            expect(k.seen).toHaveLength(2);
+            expect(r.stopped).toMatchObject({ mode: "no_think", run: 1, httpStatus: 0 });
+            expect(r.gate.result).toBe("undetermined");
+        },
+        20_000,
+    );
+
+    it.each([
+        ["success", (): number | "network" => 200],
+        ["402", (): number | "network" => 402],
+        ["network error", (): number | "network" => "network"],
+    ] as const)("the API key is sent as auth but not in the file, Markdown, stopped, gate or log lines (%s path)", async (_n, statusFor) => {
+        const k = fakeKiln(statusFor, () => false);
+        const logs: string[] = [];
+        const r = await measureMismatchAb(opts(k.fetch, logs));
+        expect(k.seen[0].auth).toBe(`Bearer ${KEY}`);
+        expect(logs.length).toBeGreaterThan(0);
+        for (const text of [fs.readFileSync(r.filePath, "utf8"), r.markdown, JSON.stringify(r.stopped), JSON.stringify(r.gate), ...logs]) expect(text).not.toContain(KEY);
     });
 });
