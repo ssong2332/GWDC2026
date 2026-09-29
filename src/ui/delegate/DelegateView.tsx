@@ -14,7 +14,7 @@ import { useApi } from "../hooks/useApi";
 import { useOwnerAction } from "../wallet/useOwnerAction";
 import { WalletGate } from "../wallet/WalletGate";
 import { useWallet } from "../wallet/WalletProvider";
-import { buildPolicySetBody, delegateReducer, initialDelegateState, type FormErrors, type PolicyForm } from "./delegateState";
+import { buildPolicySetBody, delegateReducer, delegationFieldError, initialDelegateState, type FormErrors, type PolicyForm } from "./delegateState";
 
 // Screen ① Delegate (PRD 화면 ①, F-01, F-02): sentence → Kiln candidate → owner review/edit (expiry) → wallet signature.
 
@@ -88,6 +88,7 @@ export function DelegateView() {
     }
 
     const f = s.form;
+    const textError = delegationFieldError(s.phase === "parse_error" ? s.error : null);
     const pendingCount = vault.data?.state.pendingCount ?? 0;
     const currentVersion = vault.data ? Number(vault.data.state.policyVersion) : 0;
 
@@ -97,14 +98,15 @@ export function DelegateView() {
             <p className="lead">Write one sentence that hands the event budget to the agent. The policy it becomes is checked by code, shown to you, and only takes effect when you sign it with your wallet.</p>
 
             <form className="card" onSubmit={onParse}>
-                <Field id="delegation" label="Delegation sentence" hint={`${s.text.length}/${INPUT_LIMITS.delegationTextMax} characters`}>
+                <Field id="delegation" label="Delegation sentence" hint={`${s.text.length}/${INPUT_LIMITS.delegationTextMax} characters`} error={textError ?? undefined}>
                     <textarea
                         id="delegation"
                         rows={3}
                         maxLength={INPUT_LIMITS.delegationTextMax}
                         value={s.text}
                         placeholder={`e.g. ${EXAMPLE}`}
-                        aria-describedby="delegation-hint"
+                        aria-invalid={textError ? true : undefined}
+                        aria-describedby={textError ? "delegation-error" : "delegation-hint"}
                         onChange={(e) => dispatch({ type: "text_changed", text: e.target.value })}
                         disabled={s.phase === "parsing" || action.busy}
                     />

@@ -3,6 +3,7 @@ import { expiresOnToUnix } from "@/core/domain/policy";
 import {
     buildPolicySetBody,
     delegateReducer,
+    delegationFieldError,
     formFromCandidate,
     initialDelegateState,
     type CandidateDto,
@@ -167,5 +168,28 @@ describe("buildPolicySetBody — confirmed form → /api/owner-actions/prepare b
 
     it("boundary: expiry today (23:59:59 KST still ahead) is allowed", () => {
         expect(build({ ...formFromCandidate(candidate()), expiresOn: "2026-09-28" }).ok).toBe(true);
+    });
+});
+
+// T-09 (사용자 원문 "textarea 오류 상태도 연결해"): only failures the owner fixes by rewriting the sentence mark the
+// textarea invalid; Kiln/network/server failures stay in the "Policy not applied" notice only.
+describe("delegationFieldError", () => {
+    const err = (code: string) => ({ code, message: "server detail" });
+    it("VALIDATION_FAILED (sentence empty or over the limit) → length message on the field", () => {
+        expect(delegationFieldError(err("VALIDATION_FAILED"))).toBe("Enter a sentence of 1–500 characters.");
+    });
+    it("UNKNOWN_MERCHANT / SCHEMA_INVALID (values taken from the sentence) → rewrite hint on the field", () => {
+        expect(delegationFieldError(err("UNKNOWN_MERCHANT"))).toBe("Mention only merchants from the registry, then convert again.");
+        expect(delegationFieldError(err("SCHEMA_INVALID"))).toBe("Check the amounts and dates in the sentence, then convert again.");
+    });
+    it("no error → no field error", () => {
+        expect(delegationFieldError(null)).toBeNull();
+    });
+    it("Kiln failures and model-format failures → not a field error (notice only)", () => {
+        for (const code of ["KILN_RATE_LIMITED", "KILN_CREDIT_EXHAUSTED", "KILN_UNAVAILABLE", "KILN_AUTH", "KILN_BAD_REQUEST", "NO_TOOL_CALL", "INVALID_ARGS"])
+            expect(delegationFieldError(err(code))).toBeNull();
+    });
+    it("network / unexpected / unknown codes → not a field error", () => {
+        for (const code of ["NETWORK_ERROR", "BAD_RESPONSE", "INTERNAL", "CHAIN_RPC_ERROR", "SOMETHING_NEW", ""]) expect(delegationFieldError(err(code))).toBeNull();
     });
 });

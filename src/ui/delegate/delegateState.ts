@@ -1,5 +1,5 @@
 import type { Jsonify } from "@/app/api/_lib/dto";
-import { DEFAULT_RATE_LIMITS, POLICY_RULES } from "@/config/constants";
+import { DEFAULT_RATE_LIMITS, INPUT_LIMITS, POLICY_RULES } from "@/config/constants";
 import { expiresOnToUnix } from "@/core/domain/policy";
 import type { Hex, PolicyCandidate } from "@/core/domain/types";
 import type { ApiError } from "../apiClient";
@@ -82,6 +82,21 @@ export function delegateReducer(s: DelegateState, a: DelegateAction): DelegateSt
         case "reset":
             return initialDelegateState;
     }
+}
+
+/**
+ * Field-level message for the delegation sentence (T-09). Only failures the owner fixes by rewriting the sentence
+ * mark the textarea invalid; Kiln, model-format, network and server failures stay in the notice only.
+ */
+const DELEGATION_FIELD_ERRORS: Record<string, string> = {
+    VALIDATION_FAILED: `Enter a sentence of 1–${INPUT_LIMITS.delegationTextMax} characters.`,
+    UNKNOWN_MERCHANT: "Mention only merchants from the registry, then convert again.",
+    SCHEMA_INVALID: "Check the amounts and dates in the sentence, then convert again.",
+};
+
+export function delegationFieldError(error: ApiError | null): string | null {
+    if (error === null || !Object.hasOwn(DELEGATION_FIELD_ERRORS, error.code)) return null;
+    return DELEGATION_FIELD_ERRORS[error.code];
 }
 
 export type FormErrors = Partial<Record<keyof PolicyForm, string>>;

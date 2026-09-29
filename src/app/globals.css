@@ -502,9 +502,12 @@ td.num {
     font-size: 12px;
     word-break: break-all;
 }
+.hash-medium,
+.hash-compact {
+    white-space: nowrap;
+}
 .hash-compact {
     display: none;
-    white-space: nowrap;
 }
 
 .action-status {

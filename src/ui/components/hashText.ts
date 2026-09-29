@@ -1,4 +1,4 @@
-// Narrow-screen hash label (T-09): "0x975b…6327" — first 6 chars (incl. 0x) + … + last 4.
+// Narrow-screen hash label (T-09): "0x975b…2755" — first 6 chars (incl. 0x) + … + last 4.
 // The full value stays available through the link href and title.
 
 const HEAD = 6;
