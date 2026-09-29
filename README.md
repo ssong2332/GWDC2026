@@ -50,6 +50,20 @@
 
 차단·대기는 revert가 아니라 이벤트(`SpendBlocked(reason)`/`SpendPending(flags)`)로 기록되고 tx는 성공(mined)한다 — 사전 검사(코드)가 막은 요청도 같은 인자로 PolicyVault에 제출해 온체인에 남긴다(F-06).
 
+## How the chain is used / 체인 사용 방식
+
+> 해커톤 기준 문구: "Show how the chain is used by the workflow: which state the agent reads, writes, or settles." — 아래 표가 그 답이다 (Base Sepolia, 컨트랙트 `chain/contracts/PolicyVault.sol`).
+
+| 주체 / Actor | Reads / 읽는 것 | Writes / 쓰는 것 | Settles / 정산하는 것 |
+|---|---|---|---|
+| Agent (지출 에이전트, 서명 키는 CLI 프로세스에만 존재) | 지출 요청마다 사전 검사 전에 `getState()` 1회로 잔여 예산 산출용 값(`budget`·`spent`·`reserved`)·`paused`·`policyVersion`·`expiresAt`·호출 카운터·`vaultBalance`·허용 가맹점·블록 시각을 읽는다 (`PolicyVault.sol:264-284`, `src/adapters/chain/viemVault.ts:49`, `src/core/usecases/processSpendRequest.ts:91`) | `spend(requestId, merchant, amount, agentReviewRequest, evidenceHash)` 한 가지뿐 (`PolicyVault.sol:193`, `viemVault.ts:184`, `processSpendRequest.ts:170`). 사전 검사가 막은 요청도 같은 인자로 제출해 `SpendBlocked`/`SpendPending`이 온체인에 남는다 (`processSpendRequest.ts:83`). `onlyAgent`라 다른 함수는 호출할 수 없다 (`PolicyVault.sol:144-147`) | 직접 정산하지 않는다 — 통과한 `spend()`의 컨트랙트 내부 `_pay`가 `token.safeTransfer(merchant, amount)`와 `token.safeTransfer(feeRecipient, fee)`를 실행한다 (`PolicyVault.sol:220-222, 333-336`) |
+| Owner (소유자, 브라우저 지갑 서명) | 대시보드용 `getState()`(`src/app/api/_lib/handlers.ts:78`)와 `getLogs()` 이벤트 수집(`src/core/usecases/syncChainEvents.ts:16`, 1,000블록 청크 + 읽기 재시도: `viemVault.ts:123-135`) | `setPolicy`(`PolicyVault.sol:162`), `approve`(226), `reject`(242), `pause`(252), `unpause`(258) — 서버는 호출 데이터만 준비(`/api/owner-actions/prepare`)하고 소유자 지갑이 서명·전송하며(`src/ui/wallet/ownerAction.ts:111`), 서버는 tx 영수증으로 확인만 한다(`confirmOwnerAction.ts:23`) | 승인 대기 건을 `approve()`하면 그 자리에서 같은 `_pay`로 정산 + `Approved`·`SpendExecuted`(viaApproval) 발행 (`PolicyVault.sol:226-239`). `reject()`는 예약분(`reserved`)만 풀고 이체 없음 (`PolicyVault.sol:242-250`) |
+| Third party (감사자, 키 불필요) | `getLogs()`로 배포 블록부터 모든 vault 이벤트, `getReceiptEvents()`로 tx 영수증 이벤트를 읽어 증거 JSON의 해시와 대조 (`src/core/usecases/verifyTx.ts:147, 209`) | 없음 (읽기 전용) | 없음 — 이벤트에 남은 `SpendExecuted`(금액·수수료·`evidenceHash`)로 정산 결과를 재구성만 한다 |
+
+- 정산 자산은 vault가 보유한 ERC20(`MockKRWT`)이고, 정산은 `spend()`/`approve()` 안에서만 일어난다. AI(Kiln)는 체인 상태를 읽지도 쓰지도 않는다 — 온체인 인자는 `agentReviewRequest`(불리언) 하나로만 반영된다 (`processSpendRequest.ts:96-111, 170`).
+- 웹 서버는 개인키를 갖지 않는다: `AGENT_PRIVATE_KEY`/`OWNER_PRIVATE_KEY`가 있으면 시작을 거부한다 (`src/server/env.ts:7`, D-16). 에이전트 `spend()` 서명은 CLI(`cli/e2e.ts:146`)에서만 일어난다.
+- 미확인(추정 아님, 확인 안 함): `getPending()`(`PolicyVault.sol:294`, `viemVault.ts:96`)은 리더 포트에 있으나 `src/`·`cli/`에서 호출하는 곳을 찾지 못했다 — 위 표에는 넣지 않았다.
+
 ## Status / 구현 상태
 
 | 영역 | 상태 |
