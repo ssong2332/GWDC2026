@@ -251,6 +251,9 @@ npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
 - 지갑 서명 UI는 통합 테스트(`tests/integration/walletOwnerAction.test.ts` 등)로만 검증했다 — 실제 MetaMask 등 브라우저 확장에서의 서명 흐름은 자동 검증되지 않았다(T-05 구현 근거, 인용).
 - 효율 리포트의 에너지 수치는 추정(assumed)이지 측정값이 아니다 — 위 "Efficiency" 절의 가정·출처 참조.
 - Base Sepolia 공개 RPC(`sepolia.base.org`)는 `eth_getLogs`를 1,000블록 범위로 제한한다(-32614) — `src/config/constants.ts`의 `LOG_BLOCK_CHUNK = 1_000n`으로 청크를 나눠 대응했다(T-07).
+- Qwen3 thinking 모드를 끄는 방법의 효과는 검증하지 못했다(추정). `KILN_THINKING_MODE` 플래그(`default` | `kwargs_off` | `no_think`)는 있지만 Base Sepolia 실행은 `default`로 동작했고, `npm run report:efficiency` 출력 total 행에 reasoning 토큰 1,864가 포함돼 있다(`.env.example` 22-23행 주석, PRD Open Question #3). 확인 방법: 같은 요청을 켜고/끄고 보내 reasoning 토큰 수를 비교한다.
+- 웹 접근성은 label·aria 연결만 리뷰에서 확인했다 — 명도 대비와 키보드 포커스 순서는 수치로 측정하지 않았다(QA 미검증 항목).
+- 공개 RPC 잔여 위험(추정, 이번 실제 실행에서는 나타나지 않음): 부하분산된 공개 RPC의 뒤처진 노드가 ① `getLogs` 범위를 조용히 잘라 이벤트를 놓치거나 ② 연속 tx에서 nonce를 늦게 읽어 "nonce too low"를 내거나 ③ `readContract`(`getState`·`getPending`)가 오래된 상태를 돌려줄 수 있다. 전용 RPC를 쓰면 완화된다(T-07 implementer 보고, reviewer 권고 — 인용).
 - Next.js 16의 `next dev`/`next build`가 루트 `AGENTS.md`를 자동으로 덧붙이는 문제가 있다 — 아래 "Known issue" 절 참조.
 
 ## Known issue / 알려진 이슈
