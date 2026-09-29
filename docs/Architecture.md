@@ -1,6 +1,6 @@
 # Architecture — Agent Spending Control & Evidence Layer (가칭 — PRD Open Question #2)
 
-> 소유자: architect | 상태: 승인 | 최종 수정: 2026-09-28
+> 소유자: architect | 상태: 승인 | 최종 수정: 2026-09-29 (CI 추가 — D-37, ADR-0006. 바뀐 절: 구조 개요 트리 1줄, 테스트 전략 "CI", 배포 "빌드·릴리스 파이프라인" 행, 주요 결정 표 1행 — 이 부분만 사용자 확인 대상) / 2026-09-29 (에너지 표기 — D-38. 바뀐 절: 7절 `EfficiencyReport` 주석 1줄, 관측성 "에너지 추정 가정" 제목·식 행·"표시 문구 규격" 소절 신설 — 이 부분만 사용자 확인 대상)
 > 상태는 초안/승인 두 가지. "승인"으로 바꾸는 것은 사용자만 한다 — 승인 전 구현 착수 금지 (AGENTS.md 파이프라인 규칙).
 
 ## 이 문서를 읽는 법 (금지 먼저)
@@ -31,6 +31,7 @@
 ├─ vitest.config.ts                # 계층 ② 단위 (tests/unit)
 ├─ vitest.integration.config.ts    # 계층 ③ 통합 (tests/integration, Hardhat 노드 자동 기동)
 ├─ .env.example                    # 변수 목록은 "배포 > 환경별 설정"
+├─ .github/workflows/test.yml      # CI: push·PR마다 npm test (D-37, ADR-0006 — 규격은 "테스트 전략 > CI")
 ├─ src/
 │  ├─ core/                        # 프레임워크 무의존 (Next·SQLite·openai·viem 클라이언트 import 금지). 허용 import는 "계층 규칙 > core 허용 import" 행 (D-29)
 │  │  ├─ errors.ts                 # AppError{code, message, retryable, cause}
@@ -657,6 +658,7 @@ type EfficiencyReport = {
           costUsd: string; generationIds: string[]; energyWhUpper: number }[];
   totals: { kilnCalls: number; promptTokens: number; completionTokens: number; reasoningTokens: number|null; totalTokens: number; costUsd: string; energyWhUpper: number };
   savings: { ruleBlockedRequests: number; avoidedTokensEstimate: number; avoidedEnergyWhUpper: number };  // 규칙 차단 건수 × intent_judge 평균
+  // D-38: `energyWhUpper`·`avoidedEnergyWhUpper`는 이름만 D-20 시절 그대로 유지(인터페이스 불변). 값의 의미는 상한이 아니라 "2-card scenario estimate"
   energy: { formula: string; assumptions: { name: string; value: number; unit: string; source: string }[]; disclaimer: string };
 };
 ```
@@ -714,7 +716,39 @@ type EfficiencyReport = {
 
 T-01 범위: 두 패키지 설치, Hardhat 설정(`paths.artifacts`/`cache` → `build/`), Vitest 2개 설정, 러너당 스모크 테스트 1개(Hardhat 1 + Vitest 1 — 두 러너가 각각 동작함을 보이는 최소 단위), `.env.example` 변수 목록 반영, 위 명령을 CodingRules "검증된 명령어"에 등록. 통합 러너의 노드 자동 기동은 T-03에서 처음 필요하므로 T-01에서는 설정 파일만 만든다.
 
-CI: **제안 — 사용 안 함** (OQ #14, 사용자 확인 필요. 반대 선택 시 T-01에 `.github/workflows/test.yml`: ubuntu-latest, Node 22, `npm ci` ×2, `npm test`).
+### CI (D-37, ADR-0006 — D-21의 "CI 미사용"을 대체. 제안 — 사용자 확인 필요)
+
+2026-09-28까지의 결정은 "CI 사용 안 함"(D-21, OQ #14 답 "쓰지 않음")이었다. 2026-09-29 사용자 선택 "최소 CI 추가"·"push + PR (Recommended)"(PRD N-14)로 아래 워크플로 1개를 둔다. 구현은 T-10(implementer). 이 표가 규격이다 — 표에 없는 스텝·잡·매트릭스를 추가하지 않는다.
+
+| 항목 | 결정 |
+|---|---|
+| 파일 | `.github/workflows/test.yml` 1개, 잡 1개(`test`) |
+| 트리거 | `push`(브랜치 필터 없음) + `pull_request`(필터 없음). 같은 repo 브랜치의 PR은 2회 실행됨 — 감수(`concurrency` 설정 없음) |
+| 러너 | `ubuntu-latest` (로컬은 Windows — 차이는 아래 위험 표) |
+| Node | `actions/setup-node`, `node-version: "22.14"` (로컬 D-02와 같은 마이너. Vitest 5 요구 `^22.12.0` 충족 — node_modules/vitest/package.json:110) |
+| 캐시 | `actions/setup-node`의 `cache: npm`, `cache-dependency-path`에 `package-lock.json`과 `chain/package-lock.json` 둘 다. Hardhat 컴파일러(solc) 다운로드 캐시는 두지 않는다 |
+| 스텝 순서 | ① `actions/checkout` ② `actions/setup-node`(위 Node·캐시) ③ `npm ci` ④ `npm --prefix chain ci` ⑤ `npm test`. 액션 버전은 구현 시점 최신 major 태그 고정(예: `@v4` — 최신 major는 추정, 확인: 각 액션 저장소 릴리스) |
+| 넣지 않는 것 | `npm --prefix chain install`(CodingRules:35 `file:..` 순환), `npm run build`·`chain:compile`(사용자 선택 범위가 `npm test`만. `hardhat test`는 스스로 컴파일하고, ③은 커밋된 `src/adapters/chain/generated/`를 쓴다), ④ E2E(키·실제 Kiln 필요 — 테스트가 아니라 증거 생성) |
+| 타임아웃 | 잡 `timeout-minutes: 20`. 근거: 로컬 `npm test` 약 48s~2m(T-04 기록, 인용) + 설치 수 분(추정) + ③ 노드 기동 상한 120s(tests/integration/setup/hardhat-node.ts:16). 테스트 자체의 timeout 값은 바꾸지 않는다 |
+| 시크릿·환경 변수 | 0개. `secrets.*`·`env:`로 키·RPC URL을 넣지 않고 `.env`·`.env.cli`를 만들지 않는다(PRD N-12). `permissions: contents: read` |
+| 성공 판정 | 워크플로 결과 success + 로그에 ①(`passing`) ②③(`Tests … passed`) 줄. 성공한 CI 관련 명령(루트 `npm ci`)은 implementer가 CodingRules "검증된 명령어"에 새 행으로 등록 |
+| 실패 시 | 원인 분석 보고(AGENTS.md "막히면"). 설치 명령을 `npm install`로 바꾸거나 테스트 timeout을 올리는 우회는 보고·승인 없이 하지 않는다 |
+
+`.env` 없이 도는 근거 (이번 세션 코드 확인): `src/config/env.ts:37·40` 기본값 `CHAIN=localhost`·`KILN_MODE=fake` / `cli/_env.ts:19` 없는 env 파일은 건너뜀 / ③ 테스트는 `createAppContainer(env, …)`에 `parseServerEnv({...})` 결과 객체를 넘겨 `process.env`를 읽지 않음(tests/integration/api.test.ts:118, auditEfficiency.test.ts:131) / `tests/unit/cliEnv.test.ts`·`serverEnv.test.ts`는 임시 디렉터리·리터럴 객체만 사용. src·tests·cli·chain에 `process.env.CI` 분기 없음. 실제 CI 통과는 미검증(T-10 첫 실행으로 확인).
+
+#### CI 위험 (확인 = 이번 세션 파일로 확인, 추정 = 첫 CI 실행 전에는 모름)
+
+| 위험 | 구분 | 근거 / 확인 방법 | 대응 |
+|---|---|---|---|
+| better-sqlite3 네이티브 빌드 실패 | 확인 — 빌드 불필요 | v13.0.3 패키지에 `prebuilds/linux-x64.node` 포함, `"gypfile": false`, install 스크립트 없음(node_modules/better-sqlite3/package.json:31·48, prebuilds 디렉터리). 실제 로드 성공은 미검증 | 없음. 실패 시 로그 첨부해 보고 |
+| Windows에서 만든 lockfile에 Linux용 선택 의존성 누락(npm 알려진 문제) | 확인 — 항목 있음 | package-lock.json에 `@rolldown/binding-linux-x64-gnu`·`@next/swc-linux-x64-gnu`·`@esbuild/linux-x64`, chain/package-lock.json에 `@nomicfoundation/edr-linux-x64-gnu`·`solidity-analyzer-linux-x64-gnu` 항목 | 없음 |
+| 루트 `npm ci` 실패(lockfile ↔ package.json 불일치) | 추정 | 루트 `npm ci`는 로컬 검증 기록 없음(CodingRules:33은 `npm install`). 확인: T-10 첫 실행 로그 | 실패하면 로컬에서 `npm ci`로 재현 후 보고 — `npm install`로 바꾸지 않음 |
+| `src/adapters/chain/generated/*.ts`·lockfile 2개가 git에 없으면 ③·설치 실패 | 추정(추적되고 있을 가능성 높음) | `.gitignore`에 제외 패턴 없음, Architecture 구조 트리 "커밋". 확인: `git ls-files src/adapters/chain/generated package-lock.json chain/package-lock.json` | 없으면 보고 |
+| solc 0.8.24 다운로드(네트워크) 실패로 ① 실패 | 추정 | `chain/build/`는 `.gitignore` 제외 → CI마다 새로 컴파일·다운로드 | 재실행 1회 후에도 실패하면 보고(캐시 추가는 새 결정) |
+| 대소문자 불일치 import(Windows는 통과, Linux는 실패) | 추정 | Windows 파일시스템은 대소문자 무시. 확인: 첫 실행 로그의 `Cannot find module` | 해당 import 수정(implementer) |
+| ③ Hardhat 노드 종료 경로가 Linux에서 처음 실행됨(`detached` + `process.kill(-pid)`) | 추정 | tests/integration/setup/hardhat-node.ts:40·91 — 로컬(Windows)은 `taskkill` 분기만 실행됨 | 잡이 끝나지 않거나 포트 잔존 에러면 보고 |
+| 러너가 느려 테스트 timeout(③ 30s, T-04 때 부하 중 ① 타임아웃 기록) | 추정 | vitest.integration.config.ts:17, Tasks.md T-04 행(인용) | timeout 상향은 승인 후에만 |
+| CRLF(Windows 체크아웃) ↔ LF(Linux 체크아웃) 차이로 해시 고정 벡터 불일치 | 추정 — 낮음 | `.gitattributes` `* text=auto`. 증거 해시는 JSON 파싱 후 JCS 정규화(D-13)라 줄바꿈 무관할 것 | 실패 시 보고 |
 
 ### E2E 시나리오 (`cli/e2e.ts`, 로컬·Base Sepolia 공통 — F-15)
 
@@ -743,7 +777,7 @@ docs/PRD.md의 "배포·운영" 항목이 요구사항이라면, 여기는 그 �
 | 항목 | 결정 |
 |---|---|
 | 호스팅 / 실행 대상 | 노트북 로컬: `npm run build` 후 `npm run start`(= `next start -H 127.0.0.1 -p 3000`), 개발 중 `npm run dev`(= `next dev -H 127.0.0.1`). 루프백에만 바인딩 — Kiln 크레딧을 쓰는 `/api/policy/parse`에 인증이 없으므로 외부 노출 금지 (D-17). 컨트랙트: Base Sepolia (chainId 84532, 익스플로러 `https://sepolia.basescan.org`) |
-| 빌드·릴리스 파이프라인 | 수동. 순서: `npm run chain:compile`(컴파일 + `chain:export`로 abi·bytecode를 `src/adapters/chain/generated/`에 기록) → `npm test` → `npm run build`. CI 없음(제안 — OQ #14). README에 문서화(docs 에이전트) |
+| 빌드·릴리스 파이프라인 | 수동. 순서: `npm run chain:compile`(컴파일 + `chain:export`로 abi·bytecode를 `src/adapters/chain/generated/`에 기록) → `npm test` → `npm run build`. 릴리스는 수동 그대로. CI는 테스트만: GitHub Actions가 push·PR마다 `npm test` 실행(D-37, ADR-0006 — 규격은 "테스트 전략 > CI". 2026-09-28 "CI 없음"(D-21, OQ #14)을 대체). CI는 빌드·배포를 하지 않는다. README에 문서화(docs 에이전트) |
 | 환경과 승격 | 로컬 Hardhat 노드(31337) → Base Sepolia(84532) 2단계. `CHAIN` 변수 하나로 전환. 승격 = `npm run deploy -- --chain baseSepolia`(또는 `e2e:sepolia --deploy`) → `deployments/baseSepolia.json` 커밋. 배포 경로는 `cli/deploy.ts`(viem + `generated/` abi·bytecode, `--chain localhost\|baseSepolia`) 하나로 통일 — T-02의 `chain/scripts/deploy-local.ts`·`npm run chain:deploy:local`은 T-04에서 이것으로 대체·제거 (D-30) |
 | 환경별 설정 | 아래 `.env.example` 변수 표. 배포 주소는 env가 아니라 `deployments/baseSepolia.json`(커밋) / `data.local/deployments/localhost.json`(로컬). 브라우저는 env를 읽지 않고 `/api/vault/state`에서 chainId·vault 주소를 받는다 (`NEXT_PUBLIC_*` 변수 없음) |
 | DB·상태 마이그레이션 | SQLite는 앱·CLI 시작 시 `CREATE TABLE IF NOT EXISTS` + `PRAGMA user_version` 확인. 버전 불일치 시 시작 거부 + "delete data.local/app.sqlite and rerun E2E" 안내 (해커톤 기간 중 자동 마이그레이션 없음). 온체인 상태는 불변 — 컨트랙트 변경은 새 배포(새 주소) |
@@ -814,17 +848,40 @@ env 모듈 분리 (ADR-0005 — `server-only` 패키지는 `react-server` 조건
 | 에러 추적 / 모니터링 | 없음 — 로컬 단일 사용자 데모, 로그로 대체 |
 | 메트릭 | 운영 메트릭 없음. 도메인 지표(흐름별 토큰·cost·호출 수·에너지 추정)는 SQLite `kiln_calls`가 원본이고 효율 리포트가 표시한다 |
 
-### 에너지 추정 가정 (F-14 ② — 제안, OQ #9 사용자 확인 필요)
+### 에너지 추정 가정 (F-14 ② — D-20, 표시 방식은 D-38로 대체)
 
 측정값이 아니다 — 화면과 README에 "estimate (assumed), not measured"를 표시한다. 값은 `src/config/constants.ts`의 `ENERGY_ASSUMPTIONS`에 출처 문자열과 함께 둔다.
 
 | 항목 | 제안값 | 출처·근거 |
 |---|---|---|
-| 식 | `E_Wh(호출) = latency_s × cards × P_card_W ÷ 3600` (상한) | 호출 지연 동안 카드 전력 전부를 이 요청에 귀속 — 서버 배치 공유를 무시하므로 **상한(upper bound)** |
+| 식 | `E_Wh(호출) = latency_s × cards × P_card_W ÷ 3600` (**2-card scenario estimate**) | 호출 지연 동안 카드 2장 전력 전부를 이 요청에 귀속. 배치 공유를 무시하면 값이 커지지만, 카드 수 2는 최솟값이라 실제 카드가 더 많으면 값이 비례해 커진다 — 두 방향이 섞여 상한도 하한도 아니다(D-38). 이전 표기 "상한(upper bound)"은 D-38로 폐기 |
 | `P_card_W` | 180 W | FuriosaAI RNGD 공개 TDP (추정 — 제품 페이지 확인 필요) |
 | `cards` | 2 | qwen3-32b BF16 가중치 약 64 GB > RNGD 1장 HBM 48 GB → 최소 2장 (추정 — Kiln 측 실제 구성 미공개) |
 | `latency_s` | 우리 클라이언트가 잰 `latency_ms / 1000` (재시도 대기 제외, 마지막 성공 시도만) | 실측 |
 | 절감 추정 | `규칙 차단 건수 × intent_judge 평균 E_Wh` / 토큰도 같은 방식 | 규칙 차단 흐름은 호출 0회 = 실측 0 |
+
+#### 표시 문구 규격 (D-38 — T-12가 아래 문자열을 그대로 쓴다)
+
+수치·식·식별자(`energyWhUpper`·`avoidedEnergyWhUpper`·함수 `energyWhUpper`)·`ENERGY_ASSUMPTIONS`의 `cards`·`cardPowerW` 값과 `source` 문자열은 바꾸지 않는다. 아래 "새 문구" 열이 정확한 문자열이다(따옴표 안, 앞뒤 공백 없음). 에너지 표시 문자열에 `upper bound`·`≤`·`상한`을 쓰지 않는다.
+
+| 위치 (현재 위치, 인용 — 2026-09-29 grep) | 현재 문구 | 새 문구 |
+|---|---|---|
+| `src/config/constants.ts:100` 문서 주석 | `F-14 ② energy estimate (D-20, OQ #9 accepted): an upper bound, not a measurement — Kiln exposes no energy API.` | `F-14 ② energy estimate (D-20, label per D-38): a 2-card scenario estimate, not a measurement — Kiln exposes no energy API and does not publish its card count.` |
+| `ENERGY_ASSUMPTIONS.formula` (`constants.ts:104`) — 화면 식·CLI `Energy:` 줄에 그대로 출력 | `E_Wh = latency_s × cards × P_card_W ÷ 3600 (upper bound: the whole card power is attributed to this request, batching ignored)` | `E_Wh = latency_s × cards × P_card_W ÷ 3600 (2-card scenario estimate: the full power of 2 cards is attributed to this request, batching ignored)` |
+| `ENERGY_ASSUMPTIONS.disclaimer` (`constants.ts:105`) — 화면 경고·CLI 마지막 줄 | `Estimate (assumed), not measured. Latency is measured by this client; power and card count are assumptions.` | `Estimate (assumed), not measured. 2-card scenario: Kiln does not publish how many cards serve qwen3-32b, so the card count cannot be confirmed; with more cards the value grows proportionally. Latency is measured by this client; power and card count are assumptions.` |
+| CLI 표 헤더 마지막 열 (`cli/report-efficiency.ts:22`) | `energy upper bound (Wh)` | `energy est., 2-card scenario (Wh)` |
+| CLI 절감 줄 끝 (`cli/report-efficiency.ts:36`) | `~${…} Wh.` | `~${…} Wh (2-card scenario).` |
+| 화면 표 헤더 (`src/ui/efficiency/EfficiencyView.tsx:37`) | `Energy ≤ (Wh)` | `Energy est., 2-card scenario (Wh)` |
+| 화면 절감 문장 (`EfficiencyView.tsx:124`) | `Wh not spent (estimate).` | `Wh not spent (2-card scenario estimate).` |
+| 화면 에너지 절 제목 (`EfficiencyView.tsx:128`) | `Energy estimate — not measured` | `Energy estimate (2-card scenario) — not measured` |
+| 주석 `EfficiencyView.tsx:7` | `… and the energy upper bound` | `… and the energy estimate (2-card scenario, D-38)` |
+| 주석 `src/core/domain/efficiency.ts:60` | `E_Wh = latency_s × cards × P_card_W ÷ 3600 — upper bound, not a measurement.` | `E_Wh = latency_s × cards × P_card_W ÷ 3600 — 2-card scenario estimate, not a measurement. The name "energyWhUpper" is kept for interface stability (D-38); the value is not an upper bound.` |
+| 주석 `tests/unit/efficiency.test.ts:15` | `… energy upper bound (D-20: latency_s × 2 cards × 180 W ÷ 3600).` | `… energy 2-card scenario estimate (D-20/D-38: latency_s × 2 cards × 180 W ÷ 3600).` |
+| README 한국어 표기 (docs 에이전트 소관) | `에너지 상한` 등 | `에너지 추정(2장 시나리오)`, 영문 인용은 위 영문 문구와 동일 |
+
+- 위 표에 없는 곳에서 에너지 값을 "upper bound"로 부르는 문자열이 발견되면 같은 원칙(`2-card scenario estimate`)으로 바꾼다. 무관한 "upper bound" (예: `tests/unit/finalPolicy.test.ts:25`의 예산 경계 테스트명, 인용)는 대상이 아니다.
+- 기존 단언 `/not measured/i`·`formula`의 `3600` 포함(`tests/unit/efficiency.test.ts:129~130`, `tests/unit/reportEfficiency.test.ts:16`, `tests/integration/auditEfficiency.test.ts:145`, 인용)은 새 문구에서도 성립한다. 새 단언 권장: `formula`·CLI 출력에 `2-card scenario` 포함, `disclaimer`에 `card count cannot be confirmed` 포함, CLI 출력 전체에 `/upper bound/i` 불일치.
+- 증거 패키지·`evidence/` 파일에는 이 문자열이 들어가지 않는다(`ENERGY_ASSUMPTIONS`는 `core/domain/efficiency.ts`에서만 읽힘, `evidence/`에 `upper bound`·`energyWh` 0건 — 2026-09-29 grep) → 해시 재계산·재배포 영향 없음.
 
 ## 주요 결정
 
@@ -835,3 +892,4 @@ env 모듈 분리 (ADR-0005 — `server-only` 패키지는 `react-server` 조건
 | [ADR-0001](adr/0001-policyvault-custom-contract.md) | 자체 PolicyVault 컨트랙트 (ERC-4337 스마트 계정 대신) |
 | [ADR-0002](adr/0002-block-as-event-and-onchain-precheck-record.md) | 차단은 revert 대신 이벤트 + false, 사전 차단도 온체인 제출 |
 | [ADR-0003](adr/0003-evidence-sqlite-json-onchain-hash.md) | 증거 원문 SQLite + JSON 내보내기 + 온체인 해시 (IPFS 대신) |
+| [ADR-0006](adr/0006-minimal-github-actions-ci.md) | 최소 GitHub Actions CI — push·PR마다 `npm test` (D-21 "CI 미사용" 대체) |
