@@ -1,6 +1,6 @@
-# Agent Spending Control & Evidence Layer (working title)
+# Allowance (곳간지기) — Agent Spending Control & Evidence Layer
 
-> 프로젝트 이름 미정 (PRD Open Question #2, `docs/PRD.md`). 이 리포는 [start_coding](https://github.com/) 템플릿에서 초기화되어 현재 GWDC 2026 KOREA 해커톤 챌린지 B 출품작으로 진행 중이다.
+> 프로젝트 이름은 **곳간지기**(영문 **Allowance**)로 확정됐다 (PRD Open Question #2 해결, `docs/PRD.md`). "Agent Spending Control & Evidence Layer"는 기술명(부제)이다. 이 리포는 [start_coding](https://github.com/) 템플릿에서 초기화되어 현재 GWDC 2026 KOREA 해커톤 챌린지 B 출품작으로 진행 중이다.
 > This repo was bootstrapped from the [start_coding](https://github.com/) template and is now under active development as an entry for the GWDC 2026 KOREA hackathon, Challenge B.
 
 ## Declared function (one sentence) / 선언한 기능 (한 문장)

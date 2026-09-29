@@ -1,4 +1,4 @@
-# CHANGELOG — Agent Spending Control & Evidence Layer (가칭)
+# CHANGELOG — 곳간지기 (Allowance) — Agent Spending Control & Evidence Layer
 
 > 소유자: docs | 형식: [Keep a Changelog](https://keepachangelog.com/ko/) 축약. 최신이 위.
 
@@ -23,6 +23,7 @@
 - 2026-09-27 프로젝트 초기화 (start_coding 템플릿, 커밋 `03f65f3`)
 
 ### Changed
+- 2026-09-29 프로젝트 이름 확정 반영 (PRD Open Question #2 해결): 한국어명 "곳간지기", 영문명 "Allowance", 기술명 "Agent Spending Control & Evidence Layer"는 부제. README 제목·안내문을 새 이름으로 동기화("Declared function" 문장은 심사 기준 원문이라 불변). 근거: `docs/PRD.md:1` 제목 줄, 사용자 원문 "곳간지기로 하고 반영해줘. 근데 영어로 번역된 건 다른 이름으로 해야 될 텐데, 직역과 Allowance 중에 너가 판단해서 반영해". 이 CHANGELOG 제목 줄의 "(가칭)"도 제거. UI 화면 제품명(`BRAND_NAME`)은 T-17 진행 중이라 코드는 옛 이름 그대로
 - 2026-09-29 T-15 `KILN_THINKING_MODE` 기본값 `default` → `no_think` (완료, D-39, ADR-0007): `src/config/env.ts`의 zod 기본값과 `.env.example`의 예시 값 변경, `tests/unit/env.test.ts` 갱신. 명시한 값(`default`·`kwargs_off`·`no_think`)은 그대로 존중된다. 제출 증거(Base Sepolia run, Efficiency 표 5,285 토큰·reasoning 1,864·에너지)는 `default` 모드 실행 결과이며 기본값 변경은 그 이후 실행부터 적용된다 — 증거는 재생성하지 않았다. README의 "Required environment"·"Efficiency"·"Known limitations"·"Status" 갱신. 근거: `git diff c36f25c -- src/config/env.ts .env.example tests/unit/env.test.ts`
 - 2026-09-29 T-12 에너지 추정 표기 교체 (완료, 재작업: T-06 표기, 커밋 698c243·문서 86b1d2f): "upper bound(상한)" → "2-card scenario estimate" + "Kiln 카드 수 비공개 — 확정 불가" 명시(D-38, `docs/Architecture.md` "표시 문구 규격"). 변경 파일: `src/config/constants.ts`, `src/core/domain/efficiency.ts`(주석), `cli/report-efficiency.ts`, `src/ui/efficiency/EfficiencyView.tsx`, `tests/unit/{efficiency,reportEfficiency}.test.ts`. 식별자·API 필드(`energyWhUpper` 등)·수치·식 불변(OQ #21). README의 "상한"·"upper bound" 표기도 같은 규격으로 교체. 수치 불변 근거(docs 에이전트 재실행 2026-09-29): `npm run report:efficiency -- --file evidence/base-sepolia/evidence.json` → 0.8086 / 3.4241 / 0.0000 / 합계 4.2327 Wh, 절감 ~1804 tokens·~1.4675 Wh(이전 기록값과 동일). 리뷰·QA(`docs/Tasks.md` T-09·T-12 행 인용): reviewer "치명 0건, 권고 4건", QA "9/9 통과 (T-09+T-12 묶음, DoD 통과)". `docs/CodingRules.md:55`에 "에너지 상한" 문구가 남아 있음(사용자 소유 문서 — 미수정, 리뷰 권고 #3)
 - 2026-09-29 README "Efficiency" 절 정정 (T-09 문서화 단계): "규칙으로 막힌 3건은 Kiln을 0회 호출" → "사전검사에서 확정된 요청" 기준으로 고치고 호출 폭주 사례 1건 추가. 근거: `evidence/base-sepolia/run-2026-09-28T14-44-28-469Z.json` step 7 — `"precheckAgreed":false`, `"kilnCalls":1`, `"tokens":616`, `"event":"SpendBlocked"`, `"reason":4`(RATE_LIMIT_MINUTE), docs 에이전트가 파일에서 직접 확인. 사용자 결정 원문: "고침 (Recommended)". 코드 변경 없음
