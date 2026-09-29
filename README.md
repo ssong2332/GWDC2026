@@ -93,7 +93,7 @@
 │  ├─ deploy.ts                    # 배포 통합 (--chain localhost|baseSepolia), T-02의 chain:deploy:local 대체 (D-30)
 │  ├─ e2e.ts                       # E2E 데모 (로컬·Base Sepolia 공통, 8단계, F-15)
 │  ├─ export-evidence.ts, verify-evidence.ts   # 증거 JSON 내보내기 · 제3자 검증 (F-12)
-│  ├─ report-efficiency.ts         # 흐름별 토큰·cost·에너지 상한 Markdown 표 (F-14, T-06)
+│  ├─ report-efficiency.ts         # 흐름별 토큰·cost·에너지 추정(2장 시나리오) Markdown 표 (F-14, T-06)
 │  └─ _env.ts, _container.ts       # CLI 전용 env 로드·의존성 조립
 ├─ src/
 │  ├─ app/                         # Next.js App Router: layout.tsx, page.tsx, dashboard/, delegate/, audit/, efficiency/, globals.css
@@ -155,7 +155,7 @@ cp .env.example .env
 | 타입 검사 (루트 — src·tests 전체, 산출물 없음) | `npx tsc --noEmit -p tsconfig.json` | 2026-09-28 |
 | 테스트 ③ 단일 파일 (Hardhat 노드 자동 기동 포함) | `npx vitest run --config vitest.integration.config.ts tests/integration/db.test.ts` | 2026-09-28 |
 | 실행 (개발 서버를 로컬 체인·가짜 Kiln으로 강제 — 사용자 env 파일이 CHAIN=baseSepolia여도 프로세스 환경 변수가 우선. chain:node 실행 + 로컬 배포 후, Git Bash) | `CHAIN=localhost KILN_MODE=fake RPC_URL=http://127.0.0.1:8545 DATABASE_PATH=data.local/app-ui-dev.sqlite npm run dev` | 2026-09-28 |
-| 효율 리포트 표 (내보낸 증거 JSON → 흐름별 토큰·cost·에너지 상한 Markdown 표, .env·DB·RPC 불필요) | `npm run report:efficiency -- --file evidence/base-sepolia/evidence.json` | 2026-09-29 |
+| 효율 리포트 표 (내보낸 증거 JSON → 흐름별 토큰·cost·에너지 추정(2장 시나리오) Markdown 표, .env·DB·RPC 불필요) | `npm run report:efficiency -- --file evidence/base-sepolia/evidence.json` | 2026-09-29 |
 | 제3자 검증 (Base Sepolia 공개 RPC 기본값, 읽기 전용 — mismatches 0이면 종료 코드 0) | `npm run evidence:verify -- --file evidence/base-sepolia/evidence.json` | 2026-09-29 |
 
 통합 테스트(계층 ③)는 포트 8546의 Hardhat 노드 하나를 공유하고, 동시에 여러 번 실행하면 잠금 파일로 직렬화되어 한 번에 하나씩만 돈다(`tests/integration/setup/hardhat-node.ts`).
@@ -216,27 +216,28 @@ Base Sepolia 실행은 2026-09-28T14:44Z에 1회 완료했다(아래 "Base Sepol
 
 ## Efficiency (per flow) / 흐름별 효율
 
-`npm run report:efficiency -- --file evidence/base-sepolia/evidence.json` 실행 원문(메인 세션 직접 실행, 2026-09-29):
+`npm run report:efficiency -- --file evidence/base-sepolia/evidence.json` 실행 원문(docs 에이전트 재실행, 2026-09-29 — 새 라벨 반영):
 
 ```
 provider: kiln
 
-| flow | Kiln calls | requests | prompt | completion | reasoning | total tokens | cost (USD) | energy upper bound (Wh) |
+| flow | Kiln calls | requests | prompt | completion | reasoning | total tokens | cost (USD) | energy est., 2-card scenario (Wh) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | policy_parse | 1 | 1 | 624 | 451 | 367 | 1075 | 0.00017604 | 0.8086 |
 | intent_judge | 7 | 7 | 2416 | 1794 | 1497 | 4210 | 0.00062924 | 3.4241 |
 | rule_block | 0 | 3 | 0 | 0 | 0 | 0 | 0 | 0.0000 |
 | total | 8 | - | 3040 | 2245 | 1864 | 5285 | 0.00080528 | 4.2327 |
 
-Rule-blocked requests: 3 (0 Kiln calls). Avoided (estimate from the intent_judge average): ~1804 tokens, ~1.4675 Wh.
-Energy: E_Wh = latency_s × cards × P_card_W ÷ 3600 (upper bound: the whole card power is attributed to this request, batching ignored)
+Rule-blocked requests: 3 (0 Kiln calls). Avoided (estimate from the intent_judge average): ~1804 tokens, ~1.4675 Wh (2-card scenario).
+Energy: E_Wh = latency_s × cards × P_card_W ÷ 3600 (2-card scenario estimate: the full power of 2 cards is attributed to this request, batching ignored)
   - cards = 2 cards — qwen3-32b BF16 weights ≈ 64 GB > 48 GB HBM of one FuriosaAI RNGD card → at least 2 cards (assumed; Kiln's serving setup is not published)
   - cardPowerW = 180 W — FuriosaAI RNGD published TDP 180 W (assumed full draw for the whole request)
-Estimate (assumed), not measured. Latency is measured by this client; power and card count are assumptions.
+Estimate (assumed), not measured. 2-card scenario: Kiln does not publish how many cards serve qwen3-32b, so the card count cannot be confirmed; with more cards the value grows proportionally. Latency is measured by this client; power and card count are assumptions.
 ```
 
-- **에너지는 상한(upper bound)이며 측정값이 아니다** — 가정: FuriosaAI RNGD 카드 2장 × 180W(위 원문 근거), `docs/DECISIONS.md` D-20.
-- **불필요한 추론 절감**: 규칙으로 막힌 3건(`rule_block`)은 Kiln을 0회 호출했다 — `intent_judge` 흐름의 평균으로 추정하면 약 1,804 토큰·1.4675 Wh를 아꼈다(추정, 위 원문 "Avoided" 줄).
+- **에너지는 추정(2장 시나리오)이며 측정값이 아니다** — 가정: FuriosaAI RNGD 카드 2장 × 180W(위 원문 근거), `docs/DECISIONS.md` D-20. Kiln은 qwen3-32b를 몇 장의 카드로 서빙하는지 공개하지 않아 카드 수는 확정할 수 없고, 카드가 더 많으면 값이 비례해 커진다. 과대·과소 양쪽 가능성이 섞여 있다(D-38, `docs/Architecture.md` "표시 문구 규격").
+- **불필요한 추론 절감**: 사전검사에서 확정된 요청(위 표 `rule_block` 3건)은 Kiln을 0회 호출했다 — `intent_judge` 흐름의 평균으로 추정하면 약 1,804 토큰·1.4675 Wh(2장 시나리오 추정)를 아꼈다(추정, 위 원문 "Avoided" 줄).
+- **사전검사에서 확정되지 않은 차단은 Kiln을 호출한다 — 호출 폭주 사례 1건**: `run-2026-09-28T14-44-28-469Z.json`의 step 7(동시 4건 중 1건)은 `precheckAgreed: false`, `kilnCalls: 1`(616 tokens)이었다. 사전검사는 통과해 Kiln 판단을 받았지만 온체인에서 `SpendBlocked` reason 4(`RATE_LIMIT_MINUTE`)로 차단됐다 — 동시 요청은 사전검사 시점에 분당 한도 초과가 확정되지 않을 수 있다(추정 — 확인 방법: step 7 요청들의 사전검사 기록 비교). 이 1건은 위 `rule_block` 3건에 포함되지 않는다.
 
 ## Verify it yourself (third party) / 제3자 직접 검증
 
@@ -258,7 +259,7 @@ npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
 | ① 위임 | `/delegate` | 자연어 위임 문장 입력 → Kiln이 만든 정책 후보 확인·수정 → 소유자 브라우저 지갑 서명 |
 | ② 대시보드 | `/dashboard` | 잔여 예산·지출 목록, 승인 대기함(승인/거절 서명), 정지(pause) 버튼, 영수증 |
 | ③ 감사 | `/audit` | tx hash 입력 → 증거 재구성 + 해시 일치 표시 (제3자가 소유자·운영자 없이 검증) |
-| ④ 효율 | `/efficiency` | 흐름별 토큰 4종·cost·호출 수·Generation-Id, 규칙 차단 절감, 에너지 상한 추정 |
+| ④ 효율 | `/efficiency` | 흐름별 토큰 4종·cost·호출 수·Generation-Id, 규칙 차단 절감, 에너지 추정(2장 시나리오) |
 
 ## Known limitations / 알려진 한계
 
