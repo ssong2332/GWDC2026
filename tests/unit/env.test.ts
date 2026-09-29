@@ -38,7 +38,7 @@ describe("parseServerEnv (src/config/env.ts — pure, ADR-0005)", () => {
                 apiKey: null,
                 baseUrl: "https://api.bricksum.com/v1",
                 model: "qwen3-32b",
-                thinkingMode: "default",
+                thinkingMode: "no_think",
                 maxTokensParse: 2048,
                 maxTokensJudge: 1024,
             },
@@ -63,6 +63,15 @@ describe("parseServerEnv (src/config/env.ts — pure, ADR-0005)", () => {
         });
         expect(JSON.stringify(env)).not.toContain(AGENT_KEY.slice(2));
         expect(Object.keys(env)).toEqual(["chain", "rpcUrl", "databasePath", "kiln"]);
+    });
+
+    it("defaults KILN_THINKING_MODE to no_think when unset or empty (D-39, ADR-0007)", () => {
+        expect(parseServerEnv({}).kiln.thinkingMode).toBe("no_think");
+        expect(parseServerEnv({ KILN_THINKING_MODE: "" }).kiln.thinkingMode).toBe("no_think");
+    });
+
+    it.each(["default", "kwargs_off", "no_think"] as const)("keeps an explicit KILN_THINKING_MODE=%s", (mode) => {
+        expect(parseServerEnv({ KILN_THINKING_MODE: mode }).kiln.thinkingMode).toBe(mode);
     });
 
     it("treats empty strings as unset (KEY= lines in an env file)", () => {

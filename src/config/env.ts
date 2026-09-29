@@ -41,7 +41,7 @@ export const serverEnvSchema = z
         KILN_API_KEY: z.string().min(1).optional(),
         KILN_BASE_URL: z.url().default(ENV_DEFAULTS.kilnBaseUrl),
         KILN_MODEL: z.string().min(1).default(KILN.defaultModel),
-        KILN_THINKING_MODE: z.enum(["default", "kwargs_off", "no_think"]).default("default"),
+        KILN_THINKING_MODE: z.enum(["default", "kwargs_off", "no_think"]).default("no_think"),
         KILN_MAX_TOKENS_PARSE: maxTokens(KILN.defaultMaxTokensParse),
         KILN_MAX_TOKENS_JUDGE: maxTokens(KILN.defaultMaxTokensJudge),
     })
