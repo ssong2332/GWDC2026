@@ -77,7 +77,10 @@
 | 좁은 폭 Tx 해시 한 줄 표시 · 위임 입력 오류 표시 | 완료 (T-09) |
 | GitHub Actions 최소 CI (push·PR마다 `npm test`) | 완료 (T-10) |
 | 에너지 표기: 2장 시나리오 추정 | 완료 (T-12) |
-| Thinking mode A/B 측정 (`intent_judge` 1개 입력 × 3모드 × 3회, 실제 Kiln 9회) | 완료 (T-11) — 결과는 아래 "Thinking mode A/B (T-11)" 참조, 기본값 변경은 사용자 결정 대기(PRD OQ #16) |
+| Thinking mode A/B 측정 (`intent_judge` 1개 입력 × 3모드 × 3회, 실제 Kiln 9회) | 완료 (T-11) — 결과는 아래 "Thinking mode A/B (T-11)" 참조, 기본값 변경은 T-15에서 완료 |
+| A/B 스크립트 오류 경로 기록 정확화 (중단 시 실제 status·attempts·code 기록, 2xx 파싱 실패 포함 모든 재시도 차단, 실패 경로 키 비노출 테스트) | 완료 (T-13, 커밋 c1f6644) |
+| Thinking mode A/B 측정 — 정책 변환(`policy_parse`) 흐름 (default vs no_think × 3회, 실제 Kiln 6회) | 완료 (T-14) — 결과는 아래 "Thinking mode A/B — policy_parse (T-14)" 참조 |
+| `KILN_THINKING_MODE` 기본값 `default` → `no_think` 변경 | 완료 (T-15, D-39, ADR-0007) |
 
 작업 단위·근거는 `docs/Tasks.md` 참조.
 
@@ -127,6 +130,7 @@
 
 - Node.js 22 (확인됨: `node -v` → v22.14.0), npm
 - `.env.example`을 `.env`로 복사한 뒤 값을 채운다 — **실제 값은 커밋 금지** (`.gitignore`가 `.env`류를 제외)
+- `KILN_THINKING_MODE` 기본값은 `no_think`다(T-15, D-39). 개인 env 파일에 이 변수를 명시했다면 명시한 값이 쓰인다(기본값은 명시하지 않았을 때만 적용).
 - 체인 작업(컨트랙트 컴파일·테스트)은 `chain/` 패키지의 별도 설치가 필요 — 아래 표의 `npm --prefix chain ci`
 
 ```bash
@@ -165,6 +169,7 @@ cp .env.example .env
 | CI 워크플로 (push·PR마다 자동 — `.github/workflows/test.yml`: `npm ci` → `npm --prefix chain ci` → `npm test`, 수동 실행 명령 아님) | `.github/workflows/test.yml` | 2026-09-29 |
 | Thinking mode A/B 측정 (T-11 — 실제 Kiln 유료 호출 정확히 9회: intent_judge × default·kwargs_off·no_think × 3회, 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/ JSON + stdout Markdown 표) | `npm run measure:thinking` | 2026-09-29 |
 | 테스트 ② 단일 파일 (T-11 측정 스크립트 — 가짜 Kiln, 네트워크 없음) | `npx vitest run tests/unit/thinkingAb.test.ts` | 2026-09-29 |
+| Thinking mode A/B 측정 — 정책 변환 흐름 (T-14 — 실제 Kiln 유료 호출 상한 6회: policy_parse × default·no_think × 3회, 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/thinking-ab-policy_parse-*.json + stdout 토큰 표·필드별 일치 표) | `npm run measure:thinking -- --flow policy_parse` | 2026-09-29 |
 
 통합 테스트(계층 ③)는 포트 8546의 Hardhat 노드 하나를 공유하고, 동시에 여러 번 실행하면 잠금 파일로 직렬화되어 한 번에 하나씩만 돈다(`tests/integration/setup/hardhat-node.ts`).
 
@@ -266,7 +271,25 @@ Qwen3의 reasoning(thinking) 토큰을 끄는 방법이 실제로 통하는지 K
   - 모드당 3회 소표본이다 — 통계적 일반화는 못 한다. 입력도 1개뿐이다.
   - 지연에는 프롬프트 캐시 영향이 섞였을 수 있다(추정 — 9건 중 8건에서 `cachedTokens` 351~355, `no_think` 1회차만 58). 확인 방법: 캐시가 비었을 때와 찬 상태를 나눠 재측정한다. 토큰 수 비교에는 영향이 없다.
   - `no_think`의 reasoning 토큰 1(3회 모두)은 원인을 확인하지 못했다(추정 — 모드 지시 문구 자체의 토큰일 수 있음, 확인 방법: 응답 원문 대조).
-  - Base Sepolia 제출 증거(위 표)는 `default` 모드로 실행됐고, `KILN_THINKING_MODE` 기본값은 아직 `default`다 — 바꿀지는 사용자 결정 대기(PRD Open Question #16).
+  - `KILN_THINKING_MODE` 기본값을 `no_think`로 변경했다(T-15, D-39, ADR-0007). 명시한 값은 그대로 존중된다.
+  - **제출 증거는 `default` 기준, 기본값 변경은 이후 실행부터**: Base Sepolia 제출 증거(위 Efficiency 표의 5,285 토큰·reasoning 1,864·에너지 4.2327 Wh, run `run-2026-09-28T14-44-28-469Z.json`)는 `default` 모드 실행 결과다. 기본값 변경은 그 이후 실행부터 적용되며, 제출 증거는 재생성하지 않았다.
+
+### Thinking mode A/B — policy_parse (T-14)
+
+정책 변환(`policy_parse`) 흐름에서도 같은 측정을 했다. 수치는 결과 파일 `evidence/thinking-ab/thinking-ab-policy_parse-2026-09-29T06-29-57-467Z.json`의 `summary`·`comparison` 원문이다.
+
+- 측정 조건: 고정 입력 1개("행사비 20만 원을 맡길게, 다이소·쿠팡만, 건당 5만 원 넘으면 물어봐"), 모델 `qwen3-32b`, 모드 2개(`default` / `no_think`) × 3회 = 실제 Kiln 요청 6회(전부 HTTP 200, `attempts` 1, 재시도·중단 없음), 2026-09-29 실행, 라운드로빈 순서.
+- 모드별 평균 (3회) — 괄호는 `default` 대비 절감률:
+
+| mode | prompt | completion | reasoning | total | latency (ms) |
+|---|---:|---:|---:|---:|---:|
+| default | 624 | 585.7 | 499.7 | 1209.7 | 8636 |
+| no_think | 628 | 85 (-85.5%) | 1 (-99.8%) | 713 (-41.1%) | 1735.3 (-79.9%) |
+
+- 정책 필드 비교: 구조 필드 6개(`parseResult`·`budget`·`approvalThreshold`·`merchantIds`·`expiresOn`·`unrecognizedMerchants`)는 6회 모두 동일했다. `purpose` 문구만 달랐다(default: "event expenses" / "Event expenses for club activities" ×2, no_think: "Event expenses" ×3) — default 3회끼리도 서로 달라 모델 편차로 보인다(추정).
+- 판정: 결과 파일의 `gate`는 `different`인데, 이는 판정 규칙 확정 전의 보수적 기록(어느 필드든 한 번이라도 다르면 different, `gateRule`)이다. 사용자가 구조 필드 기준으로 **통과**로 판정했다(PRD Open Question #24, ADR-0007).
+- 재현: `npm run measure:thinking -- --flow policy_parse` — **실제 유료 Kiln 호출이 정확히 6회 발생한다**(실패 시 재시도 없이 중단). `.env`의 `KILN_API_KEY`가 필요하다.
+- 한계: 입력 1개·모드당 3회 소표본이다. 지연에는 프롬프트 캐시 영향이 섞였을 수 있다(추정 — `cachedTokens`가 no_think 1·2회차 169, 3회차 627로 다름). `no_think`의 reasoning 토큰 1(3회 모두) 원인은 확인하지 못했다(추정).
 
 ## Verify it yourself (third party) / 제3자 직접 검증
 
@@ -295,7 +318,7 @@ npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
 - 지갑 서명 UI는 통합 테스트(`tests/integration/walletOwnerAction.test.ts` 등)로만 검증했다 — 실제 MetaMask 등 브라우저 확장에서의 서명 흐름은 자동 검증되지 않았다(T-05 구현 근거, 인용).
 - 효율 리포트의 에너지 수치는 추정(assumed)이지 측정값이 아니다 — 위 "Efficiency" 절의 가정·출처 참조.
 - Base Sepolia 공개 RPC(`sepolia.base.org`)는 `eth_getLogs`를 1,000블록 범위로 제한한다(-32614) — `src/config/constants.ts`의 `LOG_BLOCK_CHUNK = 1_000n`으로 청크를 나눠 대응했다(T-07).
-- Qwen3 thinking 모드를 끄는 방법의 효과는 T-11에서 측정했다(위 "Thinking mode A/B (T-11)" 소절 참조 — `kwargs_off`·`no_think` 모두 reasoning 토큰 제거, 판단 9/9 match). 남은 한계: ① 기본값 `KILN_THINKING_MODE`는 아직 `default`다 — 바꿀지는 사용자 결정 대기(PRD Open Question #16). Base Sepolia 제출 증거의 reasoning 토큰 1,864(`npm run report:efficiency` total 행)는 `default` 모드 실행분이다. ② 측정은 `intent_judge` 1개 입력, 모드당 3회 소표본이다.
+- Qwen3 thinking 모드를 끄는 방법의 효과는 T-11(`intent_judge`)·T-14(`policy_parse`)에서 측정했다(위 두 소절 참조 — reasoning 토큰 제거, T-11 판단 9/9 match, T-14 구조 필드 6회 동일). `KILN_THINKING_MODE` 기본값은 `no_think`로 변경됐다(T-15, D-39) — Base Sepolia 제출 증거의 reasoning 토큰 1,864(`npm run report:efficiency` total 행)는 변경 전 `default` 모드 실행분이다. 남은 한계: ① 소표본(흐름당 입력 1개, 모드당 3회) ② `no_think`의 reasoning 토큰 1 원인 미확인(추정).
 - 웹 접근성은 label·aria 연결만 리뷰에서 확인했다 — 명도 대비와 키보드 포커스 순서는 수치로 측정하지 않았다(QA 미검증 항목).
 - 공개 RPC 잔여 위험(추정, 이번 실제 실행에서는 나타나지 않음): 부하분산된 공개 RPC의 뒤처진 노드가 ① `getLogs` 범위를 조용히 잘라 이벤트를 놓치거나 ② 연속 tx에서 nonce를 늦게 읽어 "nonce too low"를 내거나 ③ `readContract`(`getState`·`getPending`)가 오래된 상태를 돌려줄 수 있다. 전용 RPC를 쓰면 완화된다(T-07 implementer 보고, reviewer 권고 — 인용).
 - Next.js 16의 `next dev`/`next build`가 루트 `AGENTS.md`를 자동으로 덧붙이는 문제가 있다 — 아래 "Known issue" 절 참조.

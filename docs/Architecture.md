@@ -1,6 +1,6 @@
 # Architecture — Agent Spending Control & Evidence Layer (가칭 — PRD Open Question #2)
 
-> 소유자: architect | 상태: 승인 | 최종 수정: 2026-09-29 (CI 추가 — D-37, ADR-0006. 바뀐 절: 구조 개요 트리 1줄, 테스트 전략 "CI", 배포 "빌드·릴리스 파이프라인" 행, 주요 결정 표 1행 — 이 부분만 사용자 확인 대상) / 2026-09-29 (에너지 표기 — D-38. 바뀐 절: 7절 `EfficiencyReport` 주석 1줄, 관측성 "에너지 추정 가정" 제목·식 행·"표시 문구 규격" 소절 신설 — 이 부분만 사용자 확인 대상)
+> 소유자: architect | 상태: 승인 | 최종 수정: 2026-09-29 (CI 추가 — D-37, ADR-0006. 바뀐 절: 구조 개요 트리 1줄, 테스트 전략 "CI", 배포 "빌드·릴리스 파이프라인" 행, 주요 결정 표 1행 — 이 부분만 사용자 확인 대상) / 2026-09-29 (에너지 표기 — D-38. 바뀐 절: 7절 `EfficiencyReport` 주석 1줄, 관측성 "에너지 추정 가정" 제목·식 행·"표시 문구 규격" 소절 신설 — 이 부분만 사용자 확인 대상) / 2026-09-29 (thinking 기본값 — D-39, ADR-0007. 바뀐 절: Kiln 요청 규격 표 "thinking" 행, `.env.example` 변수 목록 `KILN_THINKING_MODE` 행, 주요 결정 표 1행 — 이 부분만 사용자 확인 대상) / 2026-09-29 (문서 동기화만 — 결정 변경 없음: ADR-0006·0007 승인 상태, T-14 게이트 통과·T-15 적용 사실, CI 액션 버전 실제값 `@v7`, 주요 결정 표에 누락된 ADR-0004·0005 행 추가)
 > 상태는 초안/승인 두 가지. "승인"으로 바꾸는 것은 사용자만 한다 — 승인 전 구현 착수 금지 (AGENTS.md 파이프라인 규칙).
 
 ## 이 문서를 읽는 법 (금지 먼저)
@@ -391,7 +391,7 @@ type KilnCallRecord = {
 | `tool_choice` | `"auto"` (고정) |
 | `max_tokens` | parse `KILN_MAX_TOKENS_PARSE`(기본 2048), judge `KILN_MAX_TOKENS_JUDGE`(기본 1024). 최소 500 강제 |
 | `temperature` | 0 (Kiln "passed through" — 미검증) |
-| thinking | `KILN_THINKING_MODE`: `default`=추가 없음 / `kwargs_off`=`chat_template_kwargs:{enable_thinking:false}` / `no_think`=system 끝에 `/no_think`. **어느 쪽이 통하는지 추정 단계** — 키 발급 후 같은 요청의 reasoning 토큰 비교로 확정 (PRD OQ #3) |
+| thinking | `KILN_THINKING_MODE`: `default`=추가 없음 / `kwargs_off`=`chat_template_kwargs:{enable_thinking:false}` / `no_think`=system 끝에 `/no_think`. **기본값 `no_think`**(D-39, ADR-0007 승인 — T-14 게이트 통과(2026-09-29), T-15로 적용: src/config/env.ts:44·.env.example:23). 근거: T-11 실측(`intent_judge`) kwargs_off·no_think 모두 reasoning 토큰 제거, 판단 불변(PRD OQ #3 해결). env에 값이 명시돼 있으면 그 값이 우선. 제출 증거(Base Sepolia)는 `default`로 실행됨 |
 | 금지 | `response_format`, `stop`, `parallel_tool_calls`, 강제 `tool_choice` — 테스트로 부재 단언 |
 
 정책 변환 function (`enum`은 레지스트리에서 런타임 생성):
@@ -716,7 +716,7 @@ type EfficiencyReport = {
 
 T-01 범위: 두 패키지 설치, Hardhat 설정(`paths.artifacts`/`cache` → `build/`), Vitest 2개 설정, 러너당 스모크 테스트 1개(Hardhat 1 + Vitest 1 — 두 러너가 각각 동작함을 보이는 최소 단위), `.env.example` 변수 목록 반영, 위 명령을 CodingRules "검증된 명령어"에 등록. 통합 러너의 노드 자동 기동은 T-03에서 처음 필요하므로 T-01에서는 설정 파일만 만든다.
 
-### CI (D-37, ADR-0006 — D-21의 "CI 미사용"을 대체. 제안 — 사용자 확인 필요)
+### CI (D-37, ADR-0006 — D-21의 "CI 미사용"을 대체. 승인 2026-09-29)
 
 2026-09-28까지의 결정은 "CI 사용 안 함"(D-21, OQ #14 답 "쓰지 않음")이었다. 2026-09-29 사용자 선택 "최소 CI 추가"·"push + PR (Recommended)"(PRD N-14)로 아래 워크플로 1개를 둔다. 구현은 T-10(implementer). 이 표가 규격이다 — 표에 없는 스텝·잡·매트릭스를 추가하지 않는다.
 
@@ -727,7 +727,7 @@ T-01 범위: 두 패키지 설치, Hardhat 설정(`paths.artifacts`/`cache` → 
 | 러너 | `ubuntu-latest` (로컬은 Windows — 차이는 아래 위험 표) |
 | Node | `actions/setup-node`, `node-version: "22.14"` (로컬 D-02와 같은 마이너. Vitest 5 요구 `^22.12.0` 충족 — node_modules/vitest/package.json:110) |
 | 캐시 | `actions/setup-node`의 `cache: npm`, `cache-dependency-path`에 `package-lock.json`과 `chain/package-lock.json` 둘 다. Hardhat 컴파일러(solc) 다운로드 캐시는 두지 않는다 |
-| 스텝 순서 | ① `actions/checkout` ② `actions/setup-node`(위 Node·캐시) ③ `npm ci` ④ `npm --prefix chain ci` ⑤ `npm test`. 액션 버전은 구현 시점 최신 major 태그 고정(예: `@v4` — 최신 major는 추정, 확인: 각 액션 저장소 릴리스) |
+| 스텝 순서 | ① `actions/checkout` ② `actions/setup-node`(위 Node·캐시) ③ `npm ci` ④ `npm --prefix chain ci` ⑤ `npm test`. 액션 버전은 구현 시점 최신 major 태그 고정 — 현재 값 `actions/checkout@v7`·`actions/setup-node@v7`(.github/workflows/test.yml:17·19) |
 | 넣지 않는 것 | `npm --prefix chain install`(CodingRules:35 `file:..` 순환), `npm run build`·`chain:compile`(사용자 선택 범위가 `npm test`만. `hardhat test`는 스스로 컴파일하고, ③은 커밋된 `src/adapters/chain/generated/`를 쓴다), ④ E2E(키·실제 Kiln 필요 — 테스트가 아니라 증거 생성) |
 | 타임아웃 | 잡 `timeout-minutes: 20`. 근거: 로컬 `npm test` 약 48s~2m(T-04 기록, 인용) + 설치 수 분(추정) + ③ 노드 기동 상한 120s(tests/integration/setup/hardhat-node.ts:16). 테스트 자체의 timeout 값은 바꾸지 않는다 |
 | 시크릿·환경 변수 | 0개. `secrets.*`·`env:`로 키·RPC URL을 넣지 않고 `.env`·`.env.cli`를 만들지 않는다(PRD N-12). `permissions: contents: read` |
@@ -796,7 +796,7 @@ docs/PRD.md의 "배포·운영" 항목이 요구사항이라면, 여기는 그 �
 | `KILN_API_KEY` | 서버·CLI | `sk-bk-your-kiln-key-here` | 시크릿. 서버 전용 (`NEXT_PUBLIC_` 금지) |
 | `KILN_BASE_URL` | 서버·CLI | `https://api.bricksum.com/v1` | SDK가 경로를 붙이므로 `/chat/completions`를 넣지 않는다 (K) |
 | `KILN_MODEL` | 서버·CLI | `qwen3-32b` | 최종 제출물은 이 값 고정 (PRD N-03) |
-| `KILN_THINKING_MODE` | 서버·CLI | `default` | `default` \| `kwargs_off` \| `no_think` |
+| `KILN_THINKING_MODE` | 서버·CLI | `no_think` | `default` \| `kwargs_off` \| `no_think`. 코드 기본값도 `no_think`(D-39, ADR-0007 — T-14 게이트 통과 후 T-15가 반영: src/config/env.ts:44 `.default("no_think")`, .env.example:23). 사용자 env 파일에 명시값이 있으면 코드 기본값은 적용되지 않는다 — 기존 `.env`/`.env.cli`의 `default` 줄은 사용자가 직접 바꾸거나 지운다 |
 | `KILN_MAX_TOKENS_PARSE` | 서버·CLI | `2048` | 500 미만이면 시작 거부 |
 | `KILN_MAX_TOKENS_JUDGE` | 서버·CLI | `1024` | 500 미만이면 시작 거부 |
 | `AGENT_PRIVATE_KEY` | **CLI만** — 파일 **`.env.cli`** (ADR-0005) | `0xyour-agent-test-wallet-private-key` | 시크릿. Base Sepolia 배포자 겸 agent. `CHAIN=localhost`면 무시 |
@@ -892,4 +892,7 @@ env 모듈 분리 (ADR-0005 — `server-only` 패키지는 `react-server` 조건
 | [ADR-0001](adr/0001-policyvault-custom-contract.md) | 자체 PolicyVault 컨트랙트 (ERC-4337 스마트 계정 대신) |
 | [ADR-0002](adr/0002-block-as-event-and-onchain-precheck-record.md) | 차단은 revert 대신 이벤트 + false, 사전 차단도 온체인 제출 |
 | [ADR-0003](adr/0003-evidence-sqlite-json-onchain-hash.md) | 증거 원문 SQLite + JSON 내보내기 + 온체인 해시 (IPFS 대신) |
+| [ADR-0004](adr/0004-active-policy-lookup-via-event-cache.md) | 에이전트 지출의 판단 입력(활성 정책 증거) 조회 — 이벤트 증분 캐시 |
+| [ADR-0005](adr/0005-env-module-split-and-cli-key-file.md) | env 모듈 분리(서버/CLI)와 개인키 파일 `.env.cli` |
 | [ADR-0006](adr/0006-minimal-github-actions-ci.md) | 최소 GitHub Actions CI — push·PR마다 `npm test` (D-21 "CI 미사용" 대체) |
+| [ADR-0007](adr/0007-thinking-mode-default-no-think.md) | `KILN_THINKING_MODE` 기본값 `no_think` (D-18 "기본 `default`" 대체) — 승인, T-14 게이트 통과, T-15 적용 완료 |
