@@ -1,0 +1,31 @@
+# Minimal CI (D-37, ADR-0006). Spec: docs/Architecture.md "테스트 전략 > CI".
+# Do not add steps/jobs/matrix beyond that table. No secrets, no env files (PRD N-12).
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.14"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            chain/package-lock.json
+
+      - run: npm ci
+
+      - run: npm --prefix chain ci
+
+      - run: npm test
