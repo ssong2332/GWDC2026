@@ -74,6 +74,9 @@
 | UI ① 위임 + ② 대시보드 | 완료 (T-05) — 지갑 서명 경로는 통합 테스트로만 검증, 실제 MetaMask 등 브라우저 확장 미검증 |
 | UI ③ 감사 + ④ 효율 리포트 | 완료 (T-06), 공개 RPC 읽기 재시도 (T-07) |
 | 화면 시각 다듬기 (4개 화면, `src/app/globals.css`만 변경 — 마크업·동작·테스트 변경 없음) | 완료 (T-08) |
+| 좁은 폭 Tx 해시 한 줄 표시 · 위임 입력 오류 표시 | 완료 (T-09) |
+| GitHub Actions 최소 CI (push·PR마다 `npm test`) | 완료 (T-10) |
+| 에너지 표기: 2장 시나리오 추정 | 완료 (T-12) |
 
 작업 단위·근거는 `docs/Tasks.md` 참조.
 
@@ -157,6 +160,8 @@ cp .env.example .env
 | 실행 (개발 서버를 로컬 체인·가짜 Kiln으로 강제 — 사용자 env 파일이 CHAIN=baseSepolia여도 프로세스 환경 변수가 우선. chain:node 실행 + 로컬 배포 후, Git Bash) | `CHAIN=localhost KILN_MODE=fake RPC_URL=http://127.0.0.1:8545 DATABASE_PATH=data.local/app-ui-dev.sqlite npm run dev` | 2026-09-28 |
 | 효율 리포트 표 (내보낸 증거 JSON → 흐름별 토큰·cost·에너지 추정(2장 시나리오) Markdown 표, .env·DB·RPC 불필요) | `npm run report:efficiency -- --file evidence/base-sepolia/evidence.json` | 2026-09-29 |
 | 제3자 검증 (Base Sepolia 공개 RPC 기본값, 읽기 전용 — mismatches 0이면 종료 코드 0) | `npm run evidence:verify -- --file evidence/base-sepolia/evidence.json` | 2026-09-29 |
+| 설치 (루트 — lockfile 기준, CI 검증: GitHub Actions run 36522315216, ubuntu-latest·Node 22.14) | `npm ci` | 2026-09-29 |
+| CI 워크플로 (push·PR마다 자동 — `.github/workflows/test.yml`: `npm ci` → `npm --prefix chain ci` → `npm test`, 수동 실행 명령 아님) | `.github/workflows/test.yml` | 2026-09-29 |
 
 통합 테스트(계층 ③)는 포트 8546의 Hardhat 노드 하나를 공유하고, 동시에 여러 번 실행하면 잠금 파일로 직렬화되어 한 번에 하나씩만 돈다(`tests/integration/setup/hardhat-node.ts`).
 
