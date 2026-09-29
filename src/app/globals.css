@@ -284,7 +284,8 @@ textarea::placeholder {
 textarea {
     resize: vertical;
 }
-.field-invalid input {
+.field-invalid input,
+.field-invalid textarea {
     border-color: var(--err-text);
 }
 .hint {
@@ -501,6 +502,10 @@ td.num {
     font-size: 12px;
     word-break: break-all;
 }
+.hash-compact {
+    display: none;
+    white-space: nowrap;
+}
 
 .action-status {
     margin-top: 12px;
@@ -564,6 +569,12 @@ details > summary {
     }
     .card {
         padding: 16px;
+    }
+    .hash-medium {
+        display: none;
+    }
+    .hash-compact {
+        display: inline;
     }
 }
 @media (max-width: 480px) {
