@@ -83,6 +83,7 @@
 | `KILN_THINKING_MODE` 기본값 `default` → `no_think` 변경 | 완료 (T-15, D-39, ADR-0007) |
 | 대시보드 Tx 링크 접근 이름을 전체 해시로(`aria-label`) · ≤1024px 표 안 배지 줄바꿈 방지로 행 높이 과다 해소 (`TxHashLink.tsx`, `globals.css`, 테스트 `txHashLink.test.ts`) | 완료 (T-16, 리뷰 치명 0건·QA DoD 통과 — `docs/Tasks.md` 확인) — 375/768px "Too many attempts" 행 135px → 61.4px, 1280px 불변(implementer 측정, 인용) |
 | Thinking mode A/B 측정 — 의도 판단 "목적 불일치" 케이스 (제출 증거 step 5와 같은 입력, default·no_think × 3회, 실제 Kiln 6회) | 완료 (T-18, 리뷰 치명 0건·QA DoD 통과 — `docs/Tasks.md` 확인) — 결과는 아래 "Thinking mode A/B — 목적 불일치 (T-18)" 참조 |
+| UI 언어 선택 — 기본 한국어 + 상단 "한국어/English" 전환 (F-17, D-40~D-44, ADR-0008), 제품명 화면 표시 ko "곳간지기" / en "Allowance", 감사 화면 VaultPaused/VaultUnpaused 라벨 결함 해소 | 완료 (T-17, 리뷰 치명 0건·QA DoD 통과 — `docs/Tasks.md` 확인). 미검증: 지갑 연결 후 서명 흐름·게이트 문구(wrong_chain·not_owner·disconnected)의 한국어 화면(지갑 필요), 위임 화면 정책 검토·오류 상태 화면(Kiln 호출 필요) |
 
 작업 단위·근거는 `docs/Tasks.md` 참조.
 
@@ -111,7 +112,7 @@
 │  ├─ adapters/                    # kiln/ (실제+가짜 클라이언트), chain/ (viemVault.ts, networks.ts, readRetry.ts, generated/ ABI·bytecode), db/ (SQLite 증거·이벤트 캐시 저장)
 │  ├─ server/                      # Route Handler용 env 로드·의존성 조립 (server-only, 개인키 있으면 시작 거부 — D-16)
 │  ├─ config/                      # constants.ts, merchants.ts, env.ts(서버·CLI 공용 zod 스키마, ADR-0005)
-│  └─ ui/                          # 위임(delegate/)·대시보드(dashboard/)·감사(audit/)·효율(efficiency/)·지갑 연결·서명(wallet/)·재사용 컴포넌트(components/)·훅(hooks/)
+│  └─ ui/                          # 위임(delegate/)·대시보드(dashboard/)·감사(audit/)·효율(efficiency/)·지갑 연결·서명(wallet/)·재사용 컴포넌트(components/)·훅(hooks/)·UI 언어 사전·전환(i18n/, F-17)
 ├─ tests/
 │  ├─ unit/                        # 계층 ②
 │  ├─ integration/                 # 계층 ③ + setup/hardhat-node.ts
@@ -332,12 +333,20 @@ npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
 | ③ 감사 | `/audit` | tx hash 입력 → 증거 재구성 + 해시 일치 표시 (제3자가 소유자·운영자 없이 검증) |
 | ④ 효율 | `/efficiency` | 흐름별 토큰 4종·cost·호출 수·Generation-Id, 규칙 차단 절감, 에너지 추정(2장 시나리오) |
 
+### 언어 선택 / UI language (F-17)
+
+- 화면은 기본 **한국어**다. 상단 메뉴의 "한국어/English" 버튼으로 전환하면 선택이 쿠키 `lang`(1년)에 저장되어 새로고침·화면 이동 뒤에도 유지되고, 서버가 그 값으로 `<html lang>`을 정해 첫 HTML부터 그 언어로 그린다. 모든 페이지가 동적 렌더로 바뀌었다(쿠키를 읽기 때문).
+- 제품명 화면 표시(로고·탭 제목): 한국어 "곳간지기" / 영어 "Allowance".
+- 번역 범위: 화면 고정 문구, 오류·차단 사유 문구(오류 제목은 번역, 서버·지갑이 준 세부 메시지는 영어 원문 그대로 함께 표시). **번역하지 않는 것**: AI(Kiln)가 생성한 문장(정책 `purpose`, 의도 판단 사유 — 증거 원문 그대로), 가게(가맹점) 이름, 금액 등 데이터 값, CLI 출력, 증거 JSON(해시가 달라지므로). 언어 전환은 표시만 바꾸며 API 요청·증거·온체인 tx는 같다.
+- 근거: `docs/PRD.md` F-17·N-11, `docs/Architecture.md` 10절 "UI 언어 (F-17)", `docs/DECISIONS.md` D-40~D-44, `docs/adr/0008-ui-locale-cookie-and-typed-dictionary.md`.
+
 ## Known limitations / 알려진 한계
 
 - 지갑 서명 UI는 통합 테스트(`tests/integration/walletOwnerAction.test.ts` 등)로만 검증했다 — 실제 MetaMask 등 브라우저 확장에서의 서명 흐름은 자동 검증되지 않았다(T-05 구현 근거, 인용).
 - 효율 리포트의 에너지 수치는 추정(assumed)이지 측정값이 아니다 — 위 "Efficiency" 절의 가정·출처 참조.
 - Base Sepolia 공개 RPC(`sepolia.base.org`)는 `eth_getLogs`를 1,000블록 범위로 제한한다(-32614) — `src/config/constants.ts`의 `LOG_BLOCK_CHUNK = 1_000n`으로 청크를 나눠 대응했다(T-07).
 - Qwen3 thinking 모드를 끄는 방법의 효과는 T-11(`intent_judge`)·T-14(`policy_parse`)에서 측정했다(위 두 소절 참조 — reasoning 토큰 제거, T-11 판단 9/9 match, T-14 구조 필드 6회 동일, T-18 목적 불일치 판단도 no_think에서 6/6 mismatch 유지 — 기본값 no_think 근거). `KILN_THINKING_MODE` 기본값은 `no_think`로 변경됐다(T-15, D-39) — Base Sepolia 제출 증거의 reasoning 토큰 1,864(`npm run report:efficiency` total 행)는 변경 전 `default` 모드 실행분이다. 남은 한계: ① 소표본(흐름당 입력 1개, 모드당 3회) ② `no_think`의 reasoning 토큰 1 원인 미확인(추정).
+- UI 언어(F-17): 영어를 고른 사용자는 서버가 그려 보낸 첫 HTML에서 탭 제목 "곳간지기"를 잠깐 보고, 화면이 뜨면 "Dashboard · Allowance"로 바뀐다(D-44 유지 — architect 판단; 레이아웃 메타데이터를 정적으로 둔 결과). 또한 지갑 연결 후 서명 흐름·게이트 문구의 한국어 화면은 지갑이 필요해 브라우저로 확인하지 못했다(T-17 QA 미검증).
 - 웹 접근성은 label·aria 연결만 리뷰에서 확인했다 — 명도 대비와 키보드 포커스 순서는 수치로 측정하지 않았다(QA 미검증 항목).
 - 공개 RPC 잔여 위험(추정, 이번 실제 실행에서는 나타나지 않음): 부하분산된 공개 RPC의 뒤처진 노드가 ① `getLogs` 범위를 조용히 잘라 이벤트를 놓치거나 ② 연속 tx에서 nonce를 늦게 읽어 "nonce too low"를 내거나 ③ `readContract`(`getState`·`getPending`)가 오래된 상태를 돌려줄 수 있다. 전용 RPC를 쓰면 완화된다(T-07 implementer 보고, reviewer 권고 — 인용).
 - Next.js 16의 `next dev`/`next build`가 루트 `AGENTS.md`를 자동으로 덧붙이는 문제가 있다 — 아래 "Known issue" 절 참조.
