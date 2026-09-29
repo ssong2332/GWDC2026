@@ -485,6 +485,13 @@ th.num,
 td.num {
     text-align: right;
 }
+/* T-16: on narrow screens keep each Details badge on one line so the table scrolls sideways instead of growing tall rows
+   (wide screens untouched — the widened column would rewrap other cells). */
+@media (max-width: 1024px) {
+    td .badge {
+        white-space: nowrap;
+    }
+}
 .kind {
     font-weight: 600;
 }

@@ -2,6 +2,7 @@ import type { Hex } from "@/core/domain/types";
 import { compactHash } from "./hashText";
 
 // Explorer link when the network has one (Base Sepolia); on the local node the hash is shown as text.
+// Link accessible name = full hash (aria-label, T-16); title stays as the description with the explorer hint.
 
 export const shortHash = (h: string) => `${h.slice(0, 10)}…${h.slice(-8)}`;
 
@@ -22,7 +23,7 @@ export function TxHashLink({ hash, explorerTxUrl, full = false }: { hash: Hex; e
             </code>
         );
     return (
-        <a className="hash" href={`${explorerTxUrl}${hash}`} target="_blank" rel="noreferrer" title={`${hash} (opens the block explorer)`}>
+        <a className="hash" href={`${explorerTxUrl}${hash}`} target="_blank" rel="noreferrer" aria-label={hash} title={`${hash} (opens the block explorer)`}>
             {text}
         </a>
     );
