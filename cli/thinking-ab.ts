@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { OpenAiKilnClient } from "@/adapters/kiln/openaiKilnClient";
+import { errorCodeFor } from "@/adapters/kiln/retryPolicy";
 import type { JudgeInput, ThinkingMode } from "@/adapters/kiln/types";
 import { parseServerEnv } from "@/config/env";
 import { MERCHANT_REGISTRY } from "@/config/merchants";
@@ -155,15 +156,19 @@ export function formatAbMarkdown(s: AbSummary): string {
     ].join("\n");
 }
 
+/** status: the last non-2xx HTTP status, or 0 when there was no usable response (network error, unusable 2xx body). */
 type Halt = { status: number; message: string };
 
 /**
  * Wraps fetch with a hard cap on real HTTP requests. After the first non-2xx response or network error every later
  * request is refused before it reaches the network, so the Kiln client's own retries cannot add calls.
+ * `refuseRetry()` is called when the client is about to retry: if nothing halted yet, the last 2xx response was
+ * unusable (e.g. an unparseable body), so it halts with status 0 before the retry can reach the network.
  */
 export function createRequestGuard(limit: number, inner: (url: string | URL | Request, init?: RequestInit) => Promise<Response>) {
     let sent = 0;
     let halt: Halt | null = null;
+    let lastStatus: number | null = null;
     const guarded = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
         if (halt) throw new Error(`request guard halted after ${halt.message} — no further requests`);
         if (sent >= limit) throw new Error(`request budget of ${limit} exhausted — no further requests`);
@@ -175,10 +180,14 @@ export function createRequestGuard(limit: number, inner: (url: string | URL | Re
             halt = { status: 0, message: (err instanceof Error ? err.message : String(err)).split("\n")[0] };
             throw err;
         }
+        lastStatus = res.status;
         if (res.status < 200 || res.status >= 300) halt = { status: res.status, message: `HTTP ${res.status}` };
         return res;
     };
-    return { fetch: guarded, sent: () => sent, halt: () => halt };
+    const refuseRetry = () => {
+        halt ??= { status: 0, message: `HTTP ${lastStatus ?? "-"} with an unusable response body` };
+    };
+    return { fetch: guarded, sent: () => sent, halt: () => halt, refuseRetry };
 }
 
 export type Stopped = { mode: ThinkingMode; run: number; httpStatus: number; code: string; message: string };
@@ -202,7 +211,21 @@ export type MeasureResult = {
     httpRequests: number;
 };
 
-function toSample(mode: ThinkingMode, run: number, r: Awaited<ReturnType<KilnClient["judgeIntent"]>>): AbSample {
+type JudgeResult = Awaited<ReturnType<KilnClient["judgeIntent"]>>;
+
+/**
+ * The client's record of a failed call ends on its own refused retries (status 0, attempts up to maxAttempts), so a
+ * halted call is rewritten from the guard: the halting status, its error code and the real requests sent.
+ */
+function withHalt(r: JudgeResult, halt: Halt | null, realRequests: number): JudgeResult {
+    if (r.outcome.kind !== "http_error" || !halt) return r;
+    return {
+        record: { ...r.record, httpStatus: halt.status === 0 ? null : halt.status, attempts: realRequests },
+        outcome: { kind: "http_error", status: halt.status, code: errorCodeFor(halt.status) },
+    };
+}
+
+function toSample(mode: ThinkingMode, run: number, r: JudgeResult): AbSample {
     const j = interpretIntentOutcome(r.outcome, r.record.callId);
     const rec = r.record;
     return {
@@ -232,15 +255,17 @@ export async function measureThinkingAb(o: MeasureOptions): Promise<MeasureResul
         log(JSON.stringify({ ts: now().toISOString(), level: "info", event, ...fields }));
     const budget = THINKING_MODES.length * RUNS_PER_MODE;
     const guard = createRequestGuard(budget, o.fetch ?? globalThis.fetch);
-    const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const client = (mode: ThinkingMode) =>
         new OpenAiKilnClient({
             apiKey: o.apiKey,
             baseURL: o.baseURL,
             body: { model: o.model, maxTokensParse: o.maxTokensJudge, maxTokensJudge: o.maxTokensJudge, thinkingMode: mode },
             fetch: guard.fetch as typeof globalThis.fetch,
-            // After a halt the client's retry loop only meets the guard's refusal — skip its backoff waits.
-            sleep: (ms) => (guard.halt() ? Promise.resolve() : realSleep(ms)),
+            // The client sleeps only before a retry: refuse it (halt) and skip the backoff wait — no retries in this run.
+            sleep: () => {
+                guard.refuseRetry();
+                return Promise.resolve();
+            },
             now,
         });
     const clients = new Map(THINKING_MODES.map((m) => [m, client(m)] as const));
@@ -250,7 +275,8 @@ export async function measureThinkingAb(o: MeasureOptions): Promise<MeasureResul
     let stopped: Stopped | null = null;
     outer: for (let run = 1; run <= RUNS_PER_MODE; run++) {
         for (const mode of THINKING_MODES) {
-            const r = await clients.get(mode)!.judgeIntent(AB_JUDGE_INPUT);
+            const sentBefore = guard.sent();
+            const r = withHalt(await clients.get(mode)!.judgeIntent(AB_JUDGE_INPUT), guard.halt(), guard.sent() - sentBefore);
             const s = toSample(mode, run, r);
             samples.push(s);
             logJson("thinking_ab.call", {

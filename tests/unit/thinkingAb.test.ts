@@ -152,13 +152,16 @@ const KEY = "sk-test-key-must-not-leak-0123456789";
 
 type Seen = { body: Record<string, unknown>; auth: string | null };
 
-function fakeKiln(statusFor: (i: number) => number = () => 200) {
+/** statusFor(i): HTTP status for the i-th request (1-based); "network" throws, "garbled" is a 200 with an unparseable body. */
+function fakeKiln(statusFor: (i: number) => number | "network" | "garbled" = () => 200) {
     const seen: Seen[] = [];
     const fetch = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
         const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
         seen.push({ body, auth: new Headers(init?.headers).get("authorization") });
         const i = seen.length;
         const status = statusFor(i);
+        if (status === "network") throw new TypeError("fetch failed: ECONNRESET");
+        if (status === "garbled") return new Response("{not json", { status: 200, headers: { "content-type": "application/json" } });
         if (status !== 200) return new Response(JSON.stringify({ error: { message: "nope" } }), { status, headers: { "content-type": "application/json" } });
         const thinking = body.chat_template_kwargs === undefined && !JSON.stringify(body.messages).includes("/no_think");
         return new Response(
@@ -271,4 +274,69 @@ describe("measureThinkingAb (fake Kiln)", () => {
         expect(k.seen).toHaveLength(1);
         expect(r.stopped).toMatchObject({ mode: "default", run: 1, httpStatus: 402, code: "KILN_CREDIT_EXHAUSTED" });
     });
+
+    // T-13 ① (T-11 review #1): the stop record must reflect the last real non-2xx response, not the client's
+    // refused retries (which the SDK reports as status-0 connection errors).
+    it("error: 429 → the failed sample records httpStatus 429, 1 real attempt, KILN_RATE_LIMITED; stopped.code matches", async () => {
+        const k = fakeKiln((i) => (i === 4 ? 429 : 200));
+        const r = await measureThinkingAb(opts(k.fetch, []));
+        const saved = JSON.parse(fs.readFileSync(r.filePath, "utf8"));
+        expect(saved.samples[3]).toMatchObject({ mode: "default", run: 2, httpStatus: 429, attempts: 1, judgment: "error", reason: "KILN_RATE_LIMITED" });
+        expect(r.stopped).toMatchObject({ httpStatus: 429, code: "KILN_RATE_LIMITED", message: "HTTP 429" });
+        expect(saved.stopped).toMatchObject({ httpStatus: 429, code: "KILN_RATE_LIMITED" });
+    });
+
+    it("error: 503 → httpStatus 503, 1 real attempt, KILN_UNAVAILABLE", async () => {
+        const k = fakeKiln(() => 503);
+        const r = await measureThinkingAb(opts(k.fetch, []));
+        expect(k.seen).toHaveLength(1);
+        const saved = JSON.parse(fs.readFileSync(r.filePath, "utf8"));
+        expect(saved.samples).toHaveLength(1);
+        expect(saved.samples[0]).toMatchObject({ httpStatus: 503, attempts: 1, reason: "KILN_UNAVAILABLE" });
+        expect(r.stopped).toMatchObject({ mode: "default", run: 1, httpStatus: 503, code: "KILN_UNAVAILABLE" });
+    });
+
+    it("error: network error → 1 real request, sample httpStatus null with 1 attempt, stopped status 0 / KILN_UNAVAILABLE", async () => {
+        const k = fakeKiln(() => "network");
+        const r = await measureThinkingAb(opts(k.fetch, []));
+        expect(k.seen).toHaveLength(1);
+        const saved = JSON.parse(fs.readFileSync(r.filePath, "utf8"));
+        expect(saved.samples[0]).toMatchObject({ httpStatus: null, attempts: 1, reason: "KILN_UNAVAILABLE" });
+        expect(r.stopped).toMatchObject({ httpStatus: 0, code: "KILN_UNAVAILABLE" });
+    });
+
+    // T-13 ② (T-11 review #2): a 2xx whose body cannot be parsed must halt too — the client's retry must not reach the network.
+    it(
+        "error: 2xx with an unparseable body on the 2nd request → halts, no extra real request, sample excluded from averages",
+        async () => {
+            const k = fakeKiln((i) => (i === 2 ? "garbled" : 200));
+            const r = await measureThinkingAb(opts(k.fetch, []));
+            expect(k.seen).toHaveLength(2);
+            expect(r.httpRequests).toBe(2);
+            expect(r.stopped).toMatchObject({ mode: "kwargs_off", run: 1, httpStatus: 0, code: "KILN_UNAVAILABLE" });
+            expect(r.stopped!.message).toMatch(/HTTP 200/);
+            const saved = JSON.parse(fs.readFileSync(r.filePath, "utf8"));
+            expect(saved.samples[1]).toMatchObject({ mode: "kwargs_off", httpStatus: null, attempts: 1, judgment: "error" });
+            expect(r.summary!.modes.find((m) => m.mode === "kwargs_off")).toMatchObject({ runs: 1, ok: 0 });
+        },
+        20_000,
+    );
+
+    // T-13 ③ (T-11 review #3): the key never leaks on the stop paths either.
+    it.each([
+        ["429", (i: number) => (i === 1 ? 429 : 200)],
+        ["402", () => 402],
+        ["network error", () => "network" as const],
+        ["unparseable 2xx", () => "garbled" as const],
+    ] as const)("the API key is not in stopped, halt message, log lines, file or stdout text on the %s stop path", async (_name, statusFor) => {
+        const k = fakeKiln(statusFor);
+        const logs: string[] = [];
+        const r = await measureThinkingAb(opts(k.fetch, logs));
+        expect(k.seen[0].auth).toBe(`Bearer ${KEY}`);
+        expect(r.stopped).not.toBeNull();
+        expect(logs.length).toBeGreaterThan(0);
+        // stdout text = the Markdown table + the stop line main() prints from `stopped`
+        const texts = [JSON.stringify(r.stopped), r.stopped!.message, fs.readFileSync(r.filePath, "utf8"), r.markdown, ...logs];
+        for (const text of texts) expect(text).not.toContain(KEY);
+    }, 20_000);
 });
