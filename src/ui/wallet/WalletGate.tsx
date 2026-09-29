@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { Hex } from "@/core/domain/types";
 import { ErrorNotice } from "../components/AsyncView";
+import { useI18n } from "../i18n/LocaleProvider";
 import { chainLabel } from "./chains";
 import { evaluateGate } from "./gate";
 import { useWallet } from "./WalletProvider";
@@ -11,6 +12,8 @@ import { useWallet } from "./WalletProvider";
 // owner on the server's chain; the reason and the fix (connect / switch network) are shown next to them.
 
 export function WalletGate({ target, children }: { target: { owner: Hex; chainId: number } | null; children: ReactNode }) {
+    const { m } = useI18n();
+    const g = m.wallet.gate;
     const { ready, wallet, error, connect, switchChain } = useWallet();
     const gate = ready ? evaluateGate(wallet, target) : ({ allowed: false, reason: "loading" } as const);
 
@@ -18,17 +21,17 @@ export function WalletGate({ target, children }: { target: { owner: Hex; chainId
     if (!gate.allowed) {
         switch (gate.reason) {
             case "loading":
-                notice = <p className="gate-note">Checking wallet…</p>;
+                notice = <p className="gate-note">{g.loading}</p>;
                 break;
             case "no_wallet":
-                notice = <p className="gate-note">No browser wallet detected. Install a wallet extension (e.g. MetaMask) to sign — view only.</p>;
+                notice = <p className="gate-note">{g.no_wallet}</p>;
                 break;
             case "disconnected":
                 notice = (
                     <p className="gate-note">
-                        Wallet not connected.{" "}
+                        {g.disconnected}{" "}
                         <button type="button" className="btn-secondary" onClick={() => void connect()}>
-                            Connect wallet
+                            {m.wallet.connect}
                         </button>
                     </p>
                 );
@@ -36,15 +39,15 @@ export function WalletGate({ target, children }: { target: { owner: Hex; chainId
             case "wrong_chain":
                 notice = (
                     <p className="gate-note">
-                        Wallet is on {wallet.chainId === null ? "an unknown network" : chainLabel(wallet.chainId)}.{" "}
+                        {g.wrong_chain({ chain: wallet.chainId === null ? m.wallet.anUnknownNetwork : chainLabel(wallet.chainId) })}{" "}
                         <button type="button" className="btn-secondary" onClick={() => void switchChain(target!.chainId)}>
-                            Switch to {chainLabel(target!.chainId)}
+                            {m.wallet.switchTo({ chain: chainLabel(target!.chainId) })}
                         </button>
                     </p>
                 );
                 break;
             case "not_owner":
-                notice = <p className="gate-note">Connected address is not the owner (view only).</p>;
+                notice = <p className="gate-note">{g.not_owner}</p>;
                 break;
         }
     }

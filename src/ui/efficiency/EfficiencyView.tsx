@@ -3,52 +3,52 @@
 import type { EfficiencyResponse } from "@/app/api/_lib/dto";
 import { AsyncView } from "../components/AsyncView";
 import { useApi } from "../hooks/useApi";
+import { useDocumentTitle, useI18n } from "../i18n/LocaleProvider";
+import { labelFor } from "../i18n/messages";
 
 // ④ Efficiency (F-14): per-flow Kiln usage from SQLite, rule-blocked requests at 0 tokens, and the energy estimate (2-card scenario, D-38)
 // with its formula and assumptions (D-20 — an estimate, not a measurement).
+// T-17: the energy formula, warning, units and sources come from the dictionary (en = ENERGY_ASSUMPTIONS, ko = D-43);
+// assumption values and names are the API's values. Numbers keep one format in both languages (D-42).
 
 type Report = EfficiencyResponse["report"];
-
-const FLOW_LABELS: Record<string, string> = {
-    policy_parse: "Policy conversion (Kiln)",
-    intent_judge: "Intent judgment (Kiln)",
-    rule_block: "Rule pre-check block (no Kiln call)",
-};
 
 const wh = (n: number) => n.toFixed(4);
 const n = (v: number | null) => (v === null ? "—" : v.toLocaleString("en-US"));
 
 function UsageTable({ report }: { report: Report }) {
+    const { m } = useI18n();
+    const h = m.efficiency.table;
     const t = report.totals;
     return (
         <div className="table-wrap">
             <table>
-                <caption className="sr-only">Kiln usage per flow</caption>
+                <caption className="sr-only">{h.caption}</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Flow</th>
-                        <th scope="col" className="num">Kiln calls</th>
-                        <th scope="col" className="num">Requests</th>
-                        <th scope="col" className="num">Prompt</th>
-                        <th scope="col" className="num">Completion</th>
-                        <th scope="col" className="num">Reasoning</th>
-                        <th scope="col" className="num">Total tokens</th>
-                        <th scope="col" className="num">Cost (USD)</th>
-                        <th scope="col" className="num">Energy est., 2-card scenario (Wh)</th>
-                        <th scope="col">Generation-Id</th>
+                        <th scope="col">{h.flow}</th>
+                        <th scope="col" className="num">{h.kilnCalls}</th>
+                        <th scope="col" className="num">{h.requests}</th>
+                        <th scope="col" className="num">{h.prompt}</th>
+                        <th scope="col" className="num">{h.completion}</th>
+                        <th scope="col" className="num">{h.reasoning}</th>
+                        <th scope="col" className="num">{h.totalTokens}</th>
+                        <th scope="col" className="num">{h.cost}</th>
+                        <th scope="col" className="num">{h.energy}</th>
+                        <th scope="col">{m.common.generationId}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {report.rows.length === 0 ? (
                         <tr>
                             <td colSpan={10} className="muted">
-                                No Kiln calls recorded
+                                {h.empty}
                             </td>
                         </tr>
                     ) : (
                         report.rows.map((r) => (
                             <tr key={r.flow}>
-                                <th scope="row">{FLOW_LABELS[r.flow] ?? r.flow}</th>
+                                <th scope="row">{labelFor(m.efficiency.flows, r.flow) ?? r.flow}</th>
                                 <td className="num">{n(r.kilnCalls)}</td>
                                 <td className="num">{n(r.requests)}</td>
                                 <td className="num">{n(r.promptTokens)}</td>
@@ -62,7 +62,7 @@ function UsageTable({ report }: { report: Report }) {
                                         <span className="muted">—</span>
                                     ) : (
                                         <details>
-                                            <summary>{r.generationIds.length} id{r.generationIds.length === 1 ? "" : "s"}</summary>
+                                            <summary>{h.ids({ count: r.generationIds.length })}</summary>
                                             <ul className="small">
                                                 {r.generationIds.map((g) => (
                                                     <li key={g}>
@@ -79,7 +79,7 @@ function UsageTable({ report }: { report: Report }) {
                 </tbody>
                 <tfoot>
                     <tr>
-                        <th scope="row">Total (Kiln flows)</th>
+                        <th scope="row">{h.total}</th>
                         <td className="num">{n(t.kilnCalls)}</td>
                         <td className="num">—</td>
                         <td className="num">{n(t.promptTokens)}</td>
@@ -97,46 +97,49 @@ function UsageTable({ report }: { report: Report }) {
 }
 
 export function EfficiencyView() {
+    const { m } = useI18n();
+    const t = m.efficiency;
+    useDocumentTitle(t.title);
     const state = useApi<EfficiencyResponse>("/api/efficiency");
     return (
         <div className="stack">
-            <h1>Efficiency</h1>
-            <p className="lead">
-                Tokens, cost and calls per flow. Requests the rule pre-check blocks never reach Kiln — those rows stay at 0 tokens.
-            </p>
-            <AsyncView state={state} loadingLabel="Aggregating Kiln usage…">
+            <h1>{t.title}</h1>
+            <p className="lead">{t.lead}</p>
+            <AsyncView state={state} loadingLabel={t.loading}>
                 {({ report }) => (
                     <>
                         {report.provider === "fake" && report.totals.kilnCalls > 0 ? (
                             <p className="notice notice-warn" role="status">
-                                Simulated (fake Kiln) data — no real model call was made for these rows.
+                                {t.fakeBanner}
                             </p>
                         ) : null}
-                        <section className="card" aria-label="Usage per flow">
-                            <h2>Usage per flow</h2>
+                        <section className="card" aria-label={t.usageTitle}>
+                            <h2>{t.usageTitle}</h2>
                             <UsageTable report={report} />
                         </section>
-                        <section className="card" aria-label="Avoided inference">
-                            <h2>Avoided inference</h2>
+                        <section className="card" aria-label={t.avoidedTitle}>
+                            <h2>{t.avoidedTitle}</h2>
                             <p>
-                                {report.savings.ruleBlockedRequests} request{report.savings.ruleBlockedRequests === 1 ? " was" : "s were"} blocked by code rules
-                                with 0 Kiln calls. At the intent-judgment average that is about {n(report.savings.avoidedTokensEstimate)} tokens and{" "}
-                                {wh(report.savings.avoidedEnergyWhUpper)} Wh not spent (2-card scenario estimate).
+                                {t.savings({
+                                    count: report.savings.ruleBlockedRequests,
+                                    tokens: n(report.savings.avoidedTokensEstimate),
+                                    wh: wh(report.savings.avoidedEnergyWhUpper),
+                                })}
                             </p>
                         </section>
-                        <section className="card" aria-label="Energy estimate">
-                            <h2>Energy estimate (2-card scenario) — not measured</h2>
-                            <p className="notice notice-warn">{report.energy.disclaimer}</p>
+                        <section className="card" aria-label={m.energy.title}>
+                            <h2>{m.energy.title}</h2>
+                            <p className="notice notice-warn">{m.energy.disclaimer}</p>
                             <p>
-                                <code>{report.energy.formula}</code>
+                                <code>{m.energy.formula}</code>
                             </p>
                             <ul>
                                 {report.energy.assumptions.map((a) => (
                                     <li key={a.name}>
                                         <strong>
-                                            {a.name} = {a.value} {a.unit}
+                                            {a.name} = {a.value} {labelFor(m.energy.units, a.name) ?? a.unit}
                                         </strong>{" "}
-                                        — <span className="muted">{a.source}</span>
+                                        — <span className="muted">{labelFor(m.energy.sources, a.name) ?? a.source}</span>
                                     </li>
                                 ))}
                             </ul>

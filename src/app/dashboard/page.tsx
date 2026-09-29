@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
 import { DashboardView } from "@/ui/dashboard/DashboardView";
 
-export const metadata: Metadata = { title: "Dashboard · Agent Spending Control" };
-
+// Tab title comes from the view in the selected language (F-17 ⑩, useDocumentTitle) — no static metadata.title here.
 export default function DashboardPage() {
     return <DashboardView />;
 }

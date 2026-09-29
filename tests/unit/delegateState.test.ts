@@ -139,7 +139,7 @@ describe("buildPolicySetBody — confirmed form → /api/owner-actions/prepare b
 
     it("missing expiry → field error, no body (EXPIRY_REQUIRED on the form)", () => {
         const r = build(formFromCandidate(candidate()));
-        expect(r).toEqual({ ok: false, errors: { expiresOn: "Enter an expiry date" } });
+        expect(r).toEqual({ ok: false, errors: { expiresOn: "expiryRequired" } }); // T-17: dictionary key (m.delegate.fieldErrors)
     });
 
     it.each([
@@ -173,14 +173,15 @@ describe("buildPolicySetBody — confirmed form → /api/owner-actions/prepare b
 
 // T-09 (사용자 원문 "textarea 오류 상태도 연결해"): only failures the owner fixes by rewriting the sentence mark the
 // textarea invalid; Kiln/network/server failures stay in the "Policy not applied" notice only.
+// T-17 (D-41): the helper returns a dictionary key; the screen renders m.delegate.fieldErrors[key](FIELD_ERROR_LIMITS).
 describe("delegationFieldError", () => {
     const err = (code: string) => ({ code, message: "server detail" });
     it("VALIDATION_FAILED (sentence empty or over the limit) → length message on the field", () => {
-        expect(delegationFieldError(err("VALIDATION_FAILED"))).toBe("Enter a sentence of 1–500 characters.");
+        expect(delegationFieldError(err("VALIDATION_FAILED"))).toBe("sentenceLength");
     });
     it("UNKNOWN_MERCHANT / SCHEMA_INVALID (values taken from the sentence) → rewrite hint on the field", () => {
-        expect(delegationFieldError(err("UNKNOWN_MERCHANT"))).toBe("Mention only merchants from the registry, then convert again.");
-        expect(delegationFieldError(err("SCHEMA_INVALID"))).toBe("Check the amounts and dates in the sentence, then convert again.");
+        expect(delegationFieldError(err("UNKNOWN_MERCHANT"))).toBe("unknownMerchant");
+        expect(delegationFieldError(err("SCHEMA_INVALID"))).toBe("schemaInvalid");
     });
     it("no error → no field error", () => {
         expect(delegationFieldError(null)).toBeNull();

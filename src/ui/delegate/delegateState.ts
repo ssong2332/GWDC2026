@@ -3,6 +3,7 @@ import { DEFAULT_RATE_LIMITS, INPUT_LIMITS, POLICY_RULES } from "@/config/consta
 import { expiresOnToUnix } from "@/core/domain/policy";
 import type { Hex, PolicyCandidate } from "@/core/domain/types";
 import type { ApiError } from "../apiClient";
+import type { FieldLimits } from "../i18n/en";
 
 // Delegate screen state (Architecture 10 위임 화면 상태, PRD 화면 ①, F-01 ④⑤, D-22):
 // empty → parsing → parsed(candidate, warnings) | parse_error(code) → registered(txHash). Signing itself is the
@@ -84,22 +85,44 @@ export function delegateReducer(s: DelegateState, a: DelegateAction): DelegateSt
     }
 }
 
-/**
- * Field-level message for the delegation sentence (T-09). Only failures the owner fixes by rewriting the sentence
- * mark the textarea invalid; Kiln, model-format, network and server failures stay in the notice only.
- */
-const DELEGATION_FIELD_ERRORS: Record<string, string> = {
-    VALIDATION_FAILED: `Enter a sentence of 1–${INPUT_LIMITS.delegationTextMax} characters.`,
-    UNKNOWN_MERCHANT: "Mention only merchants from the registry, then convert again.",
-    SCHEMA_INVALID: "Check the amounts and dates in the sentence, then convert again.",
+/** Field-error dictionary keys (m.delegate.fieldErrors — T-17, D-41: this module returns keys, the screen renders text). */
+export type DelegationFieldErrorKey = "sentenceLength" | "unknownMerchant" | "schemaInvalid";
+export type FormErrorKey =
+    | "budgetRange"
+    | "thresholdRange"
+    | "merchantsMin"
+    | "expiryRequired"
+    | "expiryInvalid"
+    | "expiryPast"
+    | "purposeRange"
+    | "perDayRange"
+    | "perMinuteRange";
+
+/** The limits the field-error messages quote (single source: INPUT_LIMITS / POLICY_RULES). */
+export const FIELD_ERROR_LIMITS: FieldLimits = {
+    budgetMin: POLICY_RULES.budgetMin,
+    budgetMax: POLICY_RULES.budgetMax,
+    purposeMax: POLICY_RULES.purposeMax,
+    rateLimitMax: POLICY_RULES.rateLimitMax,
+    delegationTextMax: INPUT_LIMITS.delegationTextMax,
 };
 
-export function delegationFieldError(error: ApiError | null): string | null {
+/**
+ * Field-level message key for the delegation sentence (T-09). Only failures the owner fixes by rewriting the sentence
+ * mark the textarea invalid; Kiln, model-format, network and server failures stay in the notice only.
+ */
+const DELEGATION_FIELD_ERRORS: Record<string, DelegationFieldErrorKey> = {
+    VALIDATION_FAILED: "sentenceLength",
+    UNKNOWN_MERCHANT: "unknownMerchant",
+    SCHEMA_INVALID: "schemaInvalid",
+};
+
+export function delegationFieldError(error: ApiError | null): DelegationFieldErrorKey | null {
     if (error === null || !Object.hasOwn(DELEGATION_FIELD_ERRORS, error.code)) return null;
     return DELEGATION_FIELD_ERRORS[error.code];
 }
 
-export type FormErrors = Partial<Record<keyof PolicyForm, string>>;
+export type FormErrors = Partial<Record<keyof PolicyForm, FormErrorKey>>;
 
 export type PolicySetBody = {
     kind: "policy_set";
@@ -127,24 +150,24 @@ function validateForm(f: PolicyForm, nowSec: number): { errors: FormErrors; expi
     const errors: FormErrors = {};
     const budget = toInt(f.budget);
     if (budget === null || budget < POLICY_RULES.budgetMin || budget > POLICY_RULES.budgetMax)
-        errors.budget = `Enter a whole number of KRW between ${POLICY_RULES.budgetMin} and ${POLICY_RULES.budgetMax.toLocaleString("en-US")}`;
+        errors.budget = "budgetRange";
     const threshold = toInt(f.approvalThreshold);
-    if (threshold === null || (budget !== null && threshold > budget)) errors.approvalThreshold = "Enter a whole number of KRW between 0 and the budget";
+    if (threshold === null || (budget !== null && threshold > budget)) errors.approvalThreshold = "thresholdRange";
     if (f.merchantIds.length < POLICY_RULES.merchantsMin || f.merchantIds.length > POLICY_RULES.merchantsMax)
-        errors.merchantIds = "Select at least one merchant";
+        errors.merchantIds = "merchantsMin";
     let expiresAt: number | null = null;
-    if (f.expiresOn.trim() === "") errors.expiresOn = "Enter an expiry date";
+    if (f.expiresOn.trim() === "") errors.expiresOn = "expiryRequired";
     else {
         expiresAt = expiresOnToUnix(f.expiresOn.trim());
-        if (expiresAt === null) errors.expiresOn = "Enter a valid date (YYYY-MM-DD)";
-        else if (expiresAt <= nowSec) errors.expiresOn = "The expiry date must be today or later";
+        if (expiresAt === null) errors.expiresOn = "expiryInvalid";
+        else if (expiresAt <= nowSec) errors.expiresOn = "expiryPast";
     }
     const purpose = f.purpose.trim();
-    if (purpose.length === 0 || f.purpose.length > POLICY_RULES.purposeMax) errors.purpose = `Enter a purpose (1–${POLICY_RULES.purposeMax} characters)`;
+    if (purpose.length === 0 || f.purpose.length > POLICY_RULES.purposeMax) errors.purpose = "purposeRange";
     const perMinute = toInt(f.maxPerMinute);
     const perDay = toInt(f.maxPerDay);
-    if (perDay === null || perDay < 1 || perDay > POLICY_RULES.rateLimitMax) errors.maxPerDay = `Enter 1–${POLICY_RULES.rateLimitMax}`;
-    if (perMinute === null || perMinute < 1 || (perDay !== null && perMinute > perDay)) errors.maxPerMinute = "Enter at least 1 and no more than the daily limit";
+    if (perDay === null || perDay < 1 || perDay > POLICY_RULES.rateLimitMax) errors.maxPerDay = "perDayRange";
+    if (perMinute === null || perMinute < 1 || (perDay !== null && perMinute > perDay)) errors.maxPerMinute = "perMinuteRange";
     return { errors, expiresAt };
 }
 

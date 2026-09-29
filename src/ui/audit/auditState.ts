@@ -10,8 +10,8 @@ export function normalizeTxInput(raw: string): TxInput {
     return TX_HASH.test(tx) ? { ok: true, tx } : { ok: false, reason: "invalid" };
 }
 
-/** hashMatch of an audit item → badge text and tone (badge-ok / badge-blocked / badge-pending). */
-export function hashVerdict(hashMatch: boolean | null): { label: string; tone: "ok" | "blocked" | "pending" } {
-    if (hashMatch === null) return { label: "No local evidence", tone: "pending" };
-    return hashMatch ? { label: "Hash match", tone: "ok" } : { label: "Hash MISMATCH", tone: "blocked" };
+/** hashMatch of an audit item → badge dictionary key (m.audit.hashVerdict — T-17, D-41) and tone (badge-ok / badge-blocked / badge-pending). */
+export function hashVerdict(hashMatch: boolean | null): { key: "match" | "mismatch" | "no_local"; tone: "ok" | "blocked" | "pending" } {
+    if (hashMatch === null) return { key: "no_local", tone: "pending" };
+    return hashMatch ? { key: "match", tone: "ok" } : { key: "mismatch", tone: "blocked" };
 }

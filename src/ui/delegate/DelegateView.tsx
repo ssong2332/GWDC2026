@@ -11,12 +11,14 @@ import { ErrorNotice, Loading } from "../components/AsyncView";
 import { OwnerActionStatus } from "../components/OwnerActionStatus";
 import { TxHashLink } from "../components/TxHashLink";
 import { useApi } from "../hooks/useApi";
+import { useDocumentTitle, useI18n } from "../i18n/LocaleProvider";
 import { useOwnerAction } from "../wallet/useOwnerAction";
 import { WalletGate } from "../wallet/WalletGate";
 import { useWallet } from "../wallet/WalletProvider";
-import { buildPolicySetBody, delegateReducer, delegationFieldError, initialDelegateState, type FormErrors, type PolicyForm } from "./delegateState";
+import { FIELD_ERROR_LIMITS, buildPolicySetBody, delegateReducer, delegationFieldError, initialDelegateState, type FormErrors, type PolicyForm } from "./delegateState";
 
 // Screen ① Delegate (PRD 화면 ①, F-01, F-02): sentence → Kiln candidate → owner review/edit (expiry) → wallet signature.
+// T-17: fixed text from the selected dictionary; the Kiln purpose, the sentence and merchant names are shown as they are (F-17 ⑦⑨).
 
 const EXAMPLE = "행사비 20만 원을 맡길게, 다이소·쿠팡만, 건당 5만 원 넘으면 물어봐";
 
@@ -40,6 +42,9 @@ function Field({ id, label, error, hint, children }: { id: string; label: string
 }
 
 export function DelegateView() {
+    const { m } = useI18n();
+    const t = m.delegate;
+    useDocumentTitle(t.title);
     const vault = useApi<VaultStateResponse>("/api/vault/state");
     const { wallet } = useWallet();
     const [s, dispatch] = useReducer(delegateReducer, initialDelegateState);
@@ -84,27 +89,32 @@ export function DelegateView() {
             return;
         }
         setErrors({});
-        void action.run("Register policy", built.body);
+        void action.run("register", built.body);
     }
 
     const f = s.form;
-    const textError = delegationFieldError(s.phase === "parse_error" ? s.error : null);
+    const textErrorKey = delegationFieldError(s.phase === "parse_error" ? s.error : null);
+    const textError = textErrorKey ? t.fieldErrors[textErrorKey](FIELD_ERROR_LIMITS) : null;
+    const fieldError = (k: keyof PolicyForm): string | undefined => {
+        const key = errors[k];
+        return key ? t.fieldErrors[key](FIELD_ERROR_LIMITS) : undefined;
+    };
     const pendingCount = vault.data?.state.pendingCount ?? 0;
     const currentVersion = vault.data ? Number(vault.data.state.policyVersion) : 0;
 
     return (
         <div className="stack">
-            <h1>Delegate</h1>
-            <p className="lead">Write one sentence that hands the event budget to the agent. The policy it becomes is checked by code, shown to you, and only takes effect when you sign it with your wallet.</p>
+            <h1>{t.title}</h1>
+            <p className="lead">{t.lead}</p>
 
             <form className="card" onSubmit={onParse}>
-                <Field id="delegation" label="Delegation sentence" hint={`${s.text.length}/${INPUT_LIMITS.delegationTextMax} characters`} error={textError ?? undefined}>
+                <Field id="delegation" label={t.sentenceLabel} hint={t.charCount({ count: s.text.length, max: INPUT_LIMITS.delegationTextMax })} error={textError ?? undefined}>
                     <textarea
                         id="delegation"
                         rows={3}
                         maxLength={INPUT_LIMITS.delegationTextMax}
                         value={s.text}
-                        placeholder={`e.g. ${EXAMPLE}`}
+                        placeholder={t.placeholder({ example: EXAMPLE })}
                         aria-invalid={textError ? true : undefined}
                         aria-describedby={textError ? "delegation-error" : "delegation-hint"}
                         onChange={(e) => dispatch({ type: "text_changed", text: e.target.value })}
@@ -113,41 +123,42 @@ export function DelegateView() {
                 </Field>
                 <div className="row">
                     <button type="submit" disabled={s.text.trim() === "" || s.phase === "parsing" || action.busy}>
-                        Convert to policy
+                        {t.convert}
                     </button>
                     <button type="button" className="btn-secondary" onClick={() => dispatch({ type: "text_changed", text: EXAMPLE })} disabled={s.phase === "parsing" || action.busy}>
-                        Use example sentence
+                        {t.useExample}
                     </button>
                 </div>
-                {s.text.trim() === "" ? <p className="muted">Enter a sentence to see the policy. Mention the total budget, the allowed merchants and when to ask you.</p> : null}
+                {s.text.trim() === "" ? <p className="muted">{t.emptyHint}</p> : null}
             </form>
 
-            {s.phase === "parsing" ? <Loading label="Converting with Kiln…" /> : null}
+            {s.phase === "parsing" ? <Loading label={t.converting} /> : null}
 
             {s.phase === "parse_error" && s.error ? (
-                <section className="card" aria-label="Conversion failed">
-                    <h2>Policy not applied</h2>
+                <section className="card" aria-label={t.failedLabel}>
+                    <h2>{t.notApplied}</h2>
                     <ErrorNotice error={s.error} />
                 </section>
             ) : null}
 
             {(s.phase === "parsed" || s.phase === "registered") && f && s.candidate ? (
-                <section className="card" aria-label="Policy review">
-                    <h2>Review the policy</h2>
-                    {usage?.provider === "fake" ? <p className="notice notice-warn">Simulated Kiln (fake) — no real model call was made.</p> : null}
-                    {s.warnings.length > 0 ? (
+                <section className="card" aria-label={t.reviewLabel}>
+                    <h2>{t.reviewTitle}</h2>
+                    {usage?.provider === "fake" ? <p className="notice notice-warn">{t.fakeKiln}</p> : null}
+                    {/* The API's English `warnings` stay in the response; the screen builds them from the candidate (D-41). */}
+                    {s.candidate.unrecognizedMerchants.length > 0 ? (
                         <ul className="notice notice-warn">
-                            {s.warnings.map((w) => (
-                                <li key={w}>{w}</li>
+                            {s.candidate.unrecognizedMerchants.map((name) => (
+                                <li key={name}>{t.unrecognizedMerchant({ name })}</li>
                             ))}
                         </ul>
                     ) : null}
                     <fieldset className="plain-fieldset" disabled={s.phase === "registered" || action.busy}>
                         <div className="grid-2">
-                            <Field id="budget" label="Total budget (KRW)" error={errors.budget}>
+                            <Field id="budget" label={t.fields.budget} error={fieldError("budget")}>
                                 <input id="budget" inputMode="numeric" value={f.budget} onChange={(e) => setForm({ budget: e.target.value })} aria-invalid={!!errors.budget} />
                             </Field>
-                            <Field id="threshold" label="Ask me above (KRW per payment)" error={errors.approvalThreshold}>
+                            <Field id="threshold" label={t.fields.threshold} error={fieldError("approvalThreshold")}>
                                 <input
                                     id="threshold"
                                     inputMode="numeric"
@@ -156,12 +167,7 @@ export function DelegateView() {
                                     aria-invalid={!!errors.approvalThreshold}
                                 />
                             </Field>
-                            <Field
-                                id="expiry"
-                                label="Expires on (23:59:59 KST)"
-                                error={errors.expiresOn}
-                                hint={s.candidate.expiresOn ? "Filled from the sentence — you can change it." : "The sentence has no expiry — enter a date."}
-                            >
+                            <Field id="expiry" label={t.fields.expiry} error={fieldError("expiresOn")} hint={s.candidate.expiresOn ? t.expiryFromSentence : t.expiryMissing}>
                                 <input
                                     id="expiry"
                                     type="date"
@@ -171,60 +177,66 @@ export function DelegateView() {
                                     aria-describedby="expiry-hint"
                                 />
                             </Field>
-                            <Field id="purpose" label="Purpose" error={errors.purpose}>
+                            <Field id="purpose" label={t.fields.purpose} error={fieldError("purpose")}>
                                 <input id="purpose" value={f.purpose} maxLength={POLICY_RULES.purposeMax} onChange={(e) => setForm({ purpose: e.target.value })} aria-invalid={!!errors.purpose} />
                             </Field>
-                            <Field id="per-minute" label="Max payments per minute" error={errors.maxPerMinute}>
+                            <Field id="per-minute" label={t.fields.perMinute} error={fieldError("maxPerMinute")}>
                                 <input id="per-minute" inputMode="numeric" value={f.maxPerMinute} onChange={(e) => setForm({ maxPerMinute: e.target.value })} aria-invalid={!!errors.maxPerMinute} />
                             </Field>
-                            <Field id="per-day" label="Max payments per day" error={errors.maxPerDay}>
+                            <Field id="per-day" label={t.fields.perDay} error={fieldError("maxPerDay")}>
                                 <input id="per-day" inputMode="numeric" value={f.maxPerDay} onChange={(e) => setForm({ maxPerDay: e.target.value })} aria-invalid={!!errors.maxPerDay} />
                             </Field>
                         </div>
                         <fieldset className="merchants">
-                            <legend>Allowed merchants</legend>
-                            {MERCHANT_REGISTRY.map((m) => (
-                                <label key={m.id} className="check">
+                            <legend>{t.fields.merchants}</legend>
+                            {MERCHANT_REGISTRY.map((mr) => (
+                                <label key={mr.id} className="check">
                                     <input
                                         type="checkbox"
-                                        checked={f.merchantIds.includes(m.id)}
+                                        checked={f.merchantIds.includes(mr.id)}
                                         onChange={(e) =>
-                                            setForm({ merchantIds: e.target.checked ? [...f.merchantIds, m.id] : f.merchantIds.filter((id) => id !== m.id) })
+                                            setForm({ merchantIds: e.target.checked ? [...f.merchantIds, mr.id] : f.merchantIds.filter((id) => id !== mr.id) })
                                         }
                                     />
-                                    {m.displayName}
+                                    {mr.displayName}
                                 </label>
                             ))}
                             {errors.merchantIds ? (
                                 <span className="field-error" role="alert">
-                                    {errors.merchantIds}
+                                    {fieldError("merchantIds")}
                                 </span>
                             ) : null}
                         </fieldset>
                     </fieldset>
                     {usage ? (
                         <p className="muted small">
-                            Kiln call: {usage.promptTokens} prompt / {usage.completionTokens} completion / {usage.reasoningTokens ?? "n/a"} reasoning tokens
+                            {t.usage({
+                                prompt: usage.promptTokens,
+                                completion: usage.completionTokens,
+                                reasoning: usage.reasoningTokens === null ? m.common.notAvailable : String(usage.reasoningTokens),
+                            })}
                             {usage.costUsd ? ` · $${usage.costUsd}` : ""}
-                            {usage.generationId ? ` · Generation-Id ${usage.generationId}` : ""}
+                            {usage.generationId ? ` · ${m.common.generationId} ${usage.generationId}` : ""}
                         </p>
                     ) : null}
                 </section>
             ) : null}
 
             {s.phase === "parsed" && f ? (
-                <section className="card" aria-label="Sign">
-                    <h2>Sign and register</h2>
+                <section className="card" aria-label={t.signLabel}>
+                    <h2>{t.signTitle}</h2>
                     {vault.status === "error" && vault.error ? <ErrorNotice error={vault.error} onRetry={vault.reload} /> : null}
-                    {currentVersion > 0 ? <p className="muted">This replaces the current policy (version {currentVersion}) and resets the spent amount.</p> : null}
+                    {currentVersion > 0 ? <p className="muted">{t.replaces({ version: currentVersion })}</p> : null}
                     {pendingCount > 0 ? (
                         <p className="notice notice-warn">
-                            {pendingCount} pending request(s) must be approved or rejected on the <Link href="/dashboard">dashboard</Link> before a new policy can be registered.
+                            {t.pendingBefore({ count: pendingCount })}
+                            <Link href="/dashboard">{t.pendingLink}</Link>
+                            {t.pendingAfter({ count: pendingCount })}
                         </p>
                     ) : null}
                     <WalletGate target={target}>
                         <button type="button" onClick={onSign} disabled={action.busy}>
-                            Sign and register policy
+                            {t.signButton}
                         </button>
                     </WalletGate>
                     <OwnerActionStatus label={action.label} state={action.state} explorerTxUrl={explorer} />
@@ -232,13 +244,13 @@ export function DelegateView() {
             ) : null}
 
             {s.phase === "registered" && s.txHash ? (
-                <section className="card" aria-label="Registered">
-                    <h2>Policy registered</h2>
+                <section className="card" aria-label={t.registeredLabel}>
+                    <h2>{t.registeredTitle}</h2>
                     <p className="notice notice-ok" role="status">
-                        PolicyVault now enforces this policy. Transaction: <TxHashLink hash={s.txHash} explorerTxUrl={explorer} full />
+                        {t.registeredNotice} <TxHashLink hash={s.txHash} explorerTxUrl={explorer} full />
                     </p>
                     <p>
-                        <Link href="/dashboard">Go to the dashboard</Link>
+                        <Link href="/dashboard">{t.goDashboard}</Link>
                     </p>
                 </section>
             ) : null}

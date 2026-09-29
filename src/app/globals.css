@@ -38,6 +38,12 @@ body {
     font-size: 15px;
     line-height: 1.5;
 }
+/* F-17: Korean text wraps between words, not between syllables ("차단됨" stays one piece in narrow table cells);
+   overflow-wrap still breaks a word that is longer than its box. Elements with their own word-break (.hash) keep it. */
+html:lang(ko) body {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
 
 a {
     color: var(--accent);
@@ -101,6 +107,41 @@ a {
 }
 .navbar > button {
     margin-left: auto;
+}
+/* F-17 language buttons: pushed right, directly left of the wallet button (Architecture 10 "UI 언어" 전환). */
+.lang-switch {
+    display: inline-flex;
+    margin-left: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.lang-switch + .wallet-status,
+.navbar > .lang-switch + button {
+    margin-left: 0;
+}
+.lang-switch .lang-btn {
+    min-height: 32px;
+    padding: 4px 10px;
+    border: none;
+    border-radius: 0;
+    background: var(--card);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.lang-switch .lang-btn + .lang-btn {
+    border-left: 1px solid var(--border);
+}
+.lang-switch .lang-btn:hover:not(:disabled) {
+    background: var(--row-hover);
+    color: var(--text);
+}
+.lang-switch .lang-btn[aria-pressed="true"] {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
 }
 
 .container {
@@ -485,6 +526,11 @@ th.num,
 td.num {
     text-align: right;
 }
+/* T-17 QA: row headers (efficiency flows) get a minimum width so long Korean labels do not stack word by word at 375px
+   (the table scrolls sideways inside .table-wrap). Below the width they already get at 1280px, so wide screens are unchanged. */
+th[scope="row"] {
+    min-width: 10em;
+}
 /* T-16: on narrow screens keep each Details badge on one line so the table scrolls sideways instead of growing tall rows
    (wide screens untouched — the widened column would rewrap other cells). */
 @media (max-width: 1024px) {
@@ -494,6 +540,10 @@ td.num {
 }
 .kind {
     font-weight: 600;
+}
+/* F-17: Korean activity kinds are at most 5 characters ("금고 재개") — one line keeps the rows even (T-16). */
+html:lang(ko) .kind {
+    white-space: nowrap;
 }
 .kind-blocked {
     color: var(--err-text);

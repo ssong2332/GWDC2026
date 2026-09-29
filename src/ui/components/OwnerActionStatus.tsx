@@ -1,42 +1,42 @@
 "use client";
 
+import { useI18n } from "../i18n/LocaleProvider";
+import type { Messages } from "../i18n/messages";
 import type { OwnerActionState } from "../wallet/ownerAction";
 import { ErrorNotice, Loading } from "./AsyncView";
 import { TxHashLink } from "./TxHashLink";
 
 // Progress of one owner signature (preparing → simulating → awaiting_signature → confirming → done | error).
+// The action name is a dictionary key so it follows a language switch (T-17).
 
-const STEP_TEXT: Record<"preparing" | "simulating" | "awaiting_signature" | "confirming", string> = {
-    preparing: "Preparing the evidence package…",
-    simulating: "Checking the transaction against PolicyVault…",
-    awaiting_signature: "Confirm the transaction in your wallet…",
-    confirming: "Waiting for the transaction to be mined…",
-};
+export type OwnerActionLabel = keyof Messages["ownerAction"]["labels"];
 
-export function OwnerActionStatus({ label, state, explorerTxUrl }: { label: string | null; state: OwnerActionState; explorerTxUrl: string | null }) {
+export function OwnerActionStatus({ label, state, explorerTxUrl }: { label: OwnerActionLabel | null; state: OwnerActionState; explorerTxUrl: string | null }) {
+    const { m } = useI18n();
     if (state.step === "idle") return null;
+    const t = m.ownerAction;
     return (
-        <section className="action-status" aria-label="Signature status">
-            {label ? <h3>{label}</h3> : null}
+        <section className="action-status" aria-label={t.statusLabel}>
+            {label ? <h3>{t.labels[label]}</h3> : null}
             {state.step === "done" ? (
                 <p className="notice notice-ok" role="status">
-                    Done — tx <TxHashLink hash={state.txHash} explorerTxUrl={explorerTxUrl} full />
+                    {t.done} <TxHashLink hash={state.txHash} explorerTxUrl={explorerTxUrl} full />
                 </p>
             ) : state.step === "error" ? (
                 <>
                     <ErrorNotice error={state.error} />
                     {state.txHash ? (
                         <p>
-                            Transaction: <TxHashLink hash={state.txHash} explorerTxUrl={explorerTxUrl} full />
+                            {t.transaction} <TxHashLink hash={state.txHash} explorerTxUrl={explorerTxUrl} full />
                         </p>
                     ) : null}
                 </>
             ) : (
                 <>
-                    <Loading label={STEP_TEXT[state.step]} />
+                    <Loading label={t.steps[state.step]} />
                     {state.step === "confirming" ? (
                         <p>
-                            Transaction: <TxHashLink hash={state.txHash} explorerTxUrl={explorerTxUrl} full />
+                            {t.transaction} <TxHashLink hash={state.txHash} explorerTxUrl={explorerTxUrl} full />
                         </p>
                     ) : null}
                 </>

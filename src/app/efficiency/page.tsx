@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
 import { EfficiencyView } from "@/ui/efficiency/EfficiencyView";
 
-export const metadata: Metadata = { title: "Efficiency · Agent Spending Control" };
-
+// Tab title comes from the view in the selected language (F-17 ⑩, useDocumentTitle) — no static metadata.title here.
 export default function EfficiencyPage() {
     return <EfficiencyView />;
 }

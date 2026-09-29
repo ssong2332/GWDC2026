@@ -1,20 +1,22 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import type { OwnerActionLabel } from "../components/OwnerActionStatus";
 import { ERROR_MESSAGES } from "../errorMessages";
 import { createWalletPorts, initialOwnerActionState, isBusy, runOwnerAction, type OwnerActionBody, type OwnerActionState } from "./ownerAction";
 import { useWallet } from "./WalletProvider";
 
 // React wrapper of the owner-action state machine. One action at a time: a second run while busy is ignored.
+// The label is a dictionary key (m.ownerAction.labels) so the heading follows a language switch (T-17).
 
 export function useOwnerAction(onDone?: (s: Extract<OwnerActionState, { step: "done" }>) => void) {
     const { provider, wallet } = useWallet();
     const [state, setState] = useState<OwnerActionState>(initialOwnerActionState);
-    const [label, setLabel] = useState<string | null>(null);
+    const [label, setLabel] = useState<OwnerActionLabel | null>(null);
     const busy = useRef(false);
 
     const run = useCallback(
-        async (actionLabel: string, body: OwnerActionBody) => {
+        async (actionLabel: OwnerActionLabel, body: OwnerActionBody) => {
             if (busy.current) return;
             setLabel(actionLabel);
             if (!provider || wallet.address === null) {

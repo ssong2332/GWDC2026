@@ -2,6 +2,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TxHashLink } from "@/ui/components/TxHashLink";
+import { en } from "@/ui/i18n/en";
+import { ko } from "@/ui/i18n/ko";
+import { LocaleProvider } from "@/ui/i18n/LocaleProvider";
 
 // T-16 ①: the explorer link's accessible name must be the full tx hash (aria-label), not the abbreviated visible text.
 
@@ -21,10 +24,16 @@ describe("TxHashLink accessible name", () => {
     it("explorer link keeps href, title (explorer hint) and abbreviated visible text unchanged", () => {
         const html = render({ hash: H, explorerTxUrl: EXPLORER });
         expect(attr(html, "href")).toBe(`${EXPLORER}${H}`);
-        expect(attr(html, "title")).toBe(`${H} (opens the block explorer)`);
+        // T-17: the explorer hint follows the UI language (default ko outside a provider).
+        expect(attr(html, "title")).toBe(`${H} (${ko.common.opensExplorer})`);
         expect(attr(html, "target")).toBe("_blank");
         expect(html).toContain(`<span class="hash-medium">0x975b2172…63372755</span>`);
         expect(html).toContain(`<span class="hash-compact">0x975b…2755</span>`);
+    });
+    it("explorer hint in English when the UI language is en (T-17)", () => {
+        const html = renderToStaticMarkup(createElement(LocaleProvider, { initialLocale: "en", children: createElement(TxHashLink, { hash: H, explorerTxUrl: EXPLORER }) }));
+        expect(attr(html, "title")).toBe(`${H} (${en.common.opensExplorer})`);
+        expect(en.common.opensExplorer).toBe("opens the block explorer");
     });
     it("explorer link with full → aria-label is the hash and visible text is still the full hash", () => {
         const html = render({ hash: H, explorerTxUrl: EXPLORER, full: true });

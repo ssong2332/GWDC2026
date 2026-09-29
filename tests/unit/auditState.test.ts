@@ -19,9 +19,10 @@ describe("normalizeTxInput", () => {
 });
 
 describe("hashVerdict", () => {
+    // T-17 (D-41): the pure helper returns a dictionary key; the screen looks up m.audit.hashVerdict[key].
     it("true → match, false → mismatch, null → no local evidence", () => {
-        expect(hashVerdict(true)).toEqual({ label: "Hash match", tone: "ok" });
-        expect(hashVerdict(false)).toEqual({ label: "Hash MISMATCH", tone: "blocked" });
-        expect(hashVerdict(null)).toEqual({ label: "No local evidence", tone: "pending" });
+        expect(hashVerdict(true)).toEqual({ key: "match", tone: "ok" });
+        expect(hashVerdict(false)).toEqual({ key: "mismatch", tone: "blocked" });
+        expect(hashVerdict(null)).toEqual({ key: "no_local", tone: "pending" });
     });
 });

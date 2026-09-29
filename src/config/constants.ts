@@ -104,3 +104,6 @@ export const ENERGY_ASSUMPTIONS = {
     formula: "E_Wh = latency_s × cards × P_card_W ÷ 3600 (2-card scenario estimate: the full power of 2 cards is attributed to this request, batching ignored)",
     disclaimer: "Estimate (assumed), not measured. 2-card scenario: Kiln does not publish how many cards serve qwen3-32b, so the card count cannot be confirmed; with more cards the value grows proportionally. Latency is measured by this client; power and card count are assumptions.",
 } as const;
+
+/** F-17 UI language (D-40, ADR-0008): cookie name, one-year lifetime, default ko. Browser UI only — never read by API/core/CLI (D-41). */
+export const UI_LOCALE = { cookie: "lang", maxAgeS: 31536000, default: "ko" } as const;
