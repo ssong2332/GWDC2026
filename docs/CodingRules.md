@@ -58,3 +58,5 @@
 | 제3자 검증 (Base Sepolia 공개 RPC 기본값, 읽기 전용 — mismatches 0이면 종료 코드 0) | `npm run evidence:verify -- --file evidence/base-sepolia/evidence.json` | 2026-09-29 |
 | 설치 (루트 — lockfile 기준, CI 검증: GitHub Actions run 36522315216, ubuntu-latest·Node 22.14) | `npm ci` | 2026-09-29 |
 | CI 워크플로 (push·PR마다 자동 — `.github/workflows/test.yml`: `npm ci` → `npm --prefix chain ci` → `npm test`, 수동 실행 명령 아님) | `.github/workflows/test.yml` | 2026-09-29 |
+| Thinking mode A/B 측정 (T-11 — 실제 Kiln 유료 호출 정확히 9회: intent_judge × default·kwargs_off·no_think × 3회, 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/ JSON + stdout Markdown 표) | `npm run measure:thinking` | 2026-09-29 |
+| 테스트 ② 단일 파일 (T-11 측정 스크립트 — 가짜 Kiln, 네트워크 없음) | `npx vitest run tests/unit/thinkingAb.test.ts` | 2026-09-29 |

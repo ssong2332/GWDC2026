@@ -19,7 +19,8 @@
     "e2e:sepolia": "tsx cli/e2e.ts --chain baseSepolia --kiln real",
     "evidence:export": "tsx cli/export-evidence.ts",
     "evidence:verify": "tsx cli/verify-evidence.ts",
-    "report:efficiency": "tsx cli/report-efficiency.ts"
+    "report:efficiency": "tsx cli/report-efficiency.ts",
+    "measure:thinking": "tsx cli/thinking-ab.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
