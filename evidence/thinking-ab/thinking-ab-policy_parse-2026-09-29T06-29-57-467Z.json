@@ -1,0 +1,398 @@
+{
+  "schema": "thinking-ab-policy/v1",
+  "task": "T-14",
+  "flow": "policy_parse",
+  "model": "qwen3-32b",
+  "maxTokensParse": 2048,
+  "modes": [
+    "default",
+    "no_think"
+  ],
+  "runsPerMode": 3,
+  "order": "round-robin (run 1: default, no_think; then run 2, run 3)",
+  "httpRequestBudget": 6,
+  "httpRequestsSent": 6,
+  "retryPolicy": "none — the first failed request halts the run",
+  "startedAt": "2026-09-29T06:29:57.467Z",
+  "finishedAt": "2026-09-29T06:30:28.585Z",
+  "todayKst": "2026-09-29",
+  "input": {
+    "delegationText": "행사비 20만 원을 맡길게, 다이소·쿠팡만, 건당 5만 원 넘으면 물어봐"
+  },
+  "gateRule": "PRD OQ #24 conservative default: any field differing in any run (purpose wording and variation inside one mode included) = different; missing/failed run = undetermined. Recorded only.",
+  "stopped": null,
+  "samples": [
+    {
+      "mode": "default",
+      "run": 1,
+      "httpStatus": 200,
+      "attempts": 1,
+      "latencyMs": 8592,
+      "promptTokens": 624,
+      "completionTokens": 509,
+      "reasoningTokens": 425,
+      "totalTokens": 1133,
+      "cachedTokens": 584,
+      "costUsd": "0.00016907999999999997",
+      "finishReason": "tool_calls",
+      "generationId": "cf1ba4c7-a3ad-4850-b650-baca0b77606a",
+      "judgment": "ok",
+      "reason": "",
+      "policy": {
+        "budget": "200000",
+        "approvalThreshold": "50000",
+        "merchantIds": [
+          "daiso",
+          "coupang"
+        ],
+        "expiresOn": null,
+        "purpose": "event expenses",
+        "unrecognizedMerchants": []
+      },
+      "rawArguments": "{\"total_budget_krw\": 200000, \"approval_threshold_krw\": 50000, \"allowed_merchant_ids\": [\"daiso\", \"coupang\"], \"expires_on\": null, \"purpose\": \"event expenses\", \"unrecognized_merchants\": []}"
+    },
+    {
+      "mode": "no_think",
+      "run": 1,
+      "httpStatus": 200,
+      "attempts": 1,
+      "latencyMs": 1486,
+      "promptTokens": 628,
+      "completionTokens": 85,
+      "reasoningTokens": 1,
+      "totalTokens": 713,
+      "cachedTokens": 169,
+      "costUsd": "0.00006728",
+      "finishReason": "tool_calls",
+      "generationId": "1a30be64-67e2-4389-9169-d43ad3a9cd05",
+      "judgment": "ok",
+      "reason": "",
+      "policy": {
+        "budget": "200000",
+        "approvalThreshold": "50000",
+        "merchantIds": [
+          "daiso",
+          "coupang"
+        ],
+        "expiresOn": null,
+        "purpose": "Event expenses",
+        "unrecognizedMerchants": []
+      },
+      "rawArguments": "{\"allowed_merchant_ids\": [\"daiso\", \"coupang\"], \"approval_threshold_krw\": 50000, \"expires_on\": null, \"purpose\": \"Event expenses\", \"total_budget_krw\": 200000, \"unrecognized_merchants\": []}"
+    },
+    {
+      "mode": "default",
+      "run": 2,
+      "httpStatus": 200,
+      "attempts": 1,
+      "latencyMs": 8654,
+      "promptTokens": 624,
+      "completionTokens": 624,
+      "reasoningTokens": 537,
+      "totalTokens": 1248,
+      "cachedTokens": 588,
+      "costUsd": "0.00020111999999999997",
+      "finishReason": "tool_calls",
+      "generationId": "8bba132d-691d-4dd7-9be3-b12a69e7df82",
+      "judgment": "ok",
+      "reason": "",
+      "policy": {
+        "budget": "200000",
+        "approvalThreshold": "50000",
+        "merchantIds": [
+          "daiso",
+          "coupang"
+        ],
+        "expiresOn": null,
+        "purpose": "Event expenses for club activities",
+        "unrecognizedMerchants": []
+      },
+      "rawArguments": "{\"allowed_merchant_ids\": [\"daiso\", \"coupang\"], \"approval_threshold_krw\": 50000, \"expires_on\": null, \"purpose\": \"Event expenses for club activities\", \"total_budget_krw\": 200000, \"unrecognized_merchants\": []}"
+    },
+    {
+      "mode": "no_think",
+      "run": 2,
+      "httpStatus": 200,
+      "attempts": 1,
+      "latencyMs": 1746,
+      "promptTokens": 628,
+      "completionTokens": 85,
+      "reasoningTokens": 1,
+      "totalTokens": 713,
+      "cachedTokens": 169,
+      "costUsd": "0.00006728",
+      "finishReason": "tool_calls",
+      "generationId": "ded9aad7-1370-4b4d-9b14-0d299776fce3",
+      "judgment": "ok",
+      "reason": "",
+      "policy": {
+        "budget": "200000",
+        "approvalThreshold": "50000",
+        "merchantIds": [
+          "daiso",
+          "coupang"
+        ],
+        "expiresOn": null,
+        "purpose": "Event expenses",
+        "unrecognizedMerchants": []
+      },
+      "rawArguments": "{\"allowed_merchant_ids\": [\"daiso\", \"coupang\"], \"approval_threshold_krw\": 50000, \"expires_on\": null, \"purpose\": \"Event expenses\", \"total_budget_krw\": 200000, \"unrecognized_merchants\": []}"
+    },
+    {
+      "mode": "default",
+      "run": 3,
+      "httpStatus": 200,
+      "attempts": 1,
+      "latencyMs": 8662,
+      "promptTokens": 624,
+      "completionTokens": 624,
+      "reasoningTokens": 537,
+      "totalTokens": 1248,
+      "cachedTokens": 623,
+      "costUsd": "0.00019972",
+      "finishReason": "tool_calls",
+      "generationId": "e39dc98f-a2df-43aa-b03c-2248c021d90a",
+      "judgment": "ok",
+      "reason": "",
+      "policy": {
+        "budget": "200000",
+        "approvalThreshold": "50000",
+        "merchantIds": [
+          "daiso",
+          "coupang"
+        ],
+        "expiresOn": null,
+        "purpose": "Event expenses for club activities",
+        "unrecognizedMerchants": []
+      },
+      "rawArguments": "{\"allowed_merchant_ids\": [\"daiso\", \"coupang\"], \"approval_threshold_krw\": 50000, \"expires_on\": null, \"purpose\": \"Event expenses for club activities\", \"total_budget_krw\": 200000, \"unrecognized_merchants\": []}"
+    },
+    {
+      "mode": "no_think",
+      "run": 3,
+      "httpStatus": 200,
+      "attempts": 1,
+      "latencyMs": 1974,
+      "promptTokens": 628,
+      "completionTokens": 85,
+      "reasoningTokens": 1,
+      "totalTokens": 713,
+      "cachedTokens": 627,
+      "costUsd": "0.00004896",
+      "finishReason": "tool_calls",
+      "generationId": "3b9fd1ae-db6c-4b8e-852f-24e9edfb5de5",
+      "judgment": "ok",
+      "reason": "",
+      "policy": {
+        "budget": "200000",
+        "approvalThreshold": "50000",
+        "merchantIds": [
+          "daiso",
+          "coupang"
+        ],
+        "expiresOn": null,
+        "purpose": "Event expenses",
+        "unrecognizedMerchants": []
+      },
+      "rawArguments": "{\"allowed_merchant_ids\": [\"daiso\", \"coupang\"], \"approval_threshold_krw\": 50000, \"expires_on\": null, \"purpose\": \"Event expenses\", \"total_budget_krw\": 200000, \"unrecognized_merchants\": []}"
+    }
+  ],
+  "summary": {
+    "modes": [
+      {
+        "mode": "default",
+        "runs": 3,
+        "ok": 3,
+        "avgPromptTokens": 624,
+        "avgCompletionTokens": 585.7,
+        "avgReasoningTokens": 499.7,
+        "avgTotalTokens": 1209.7,
+        "avgLatencyMs": 8636,
+        "judgments": [
+          "ok",
+          "ok",
+          "ok"
+        ],
+        "reasoningSavingsPct": null,
+        "completionSavingsPct": null,
+        "totalSavingsPct": null,
+        "latencySavingsPct": null
+      },
+      {
+        "mode": "no_think",
+        "runs": 3,
+        "ok": 3,
+        "avgPromptTokens": 628,
+        "avgCompletionTokens": 85,
+        "avgReasoningTokens": 1,
+        "avgTotalTokens": 713,
+        "avgLatencyMs": 1735.3,
+        "judgments": [
+          "ok",
+          "ok",
+          "ok"
+        ],
+        "reasoningSavingsPct": 99.8,
+        "completionSavingsPct": 85.5,
+        "totalSavingsPct": 41.1,
+        "latencySavingsPct": 79.9
+      }
+    ],
+    "judgmentsAgree": true
+  },
+  "comparison": {
+    "rows": [
+      {
+        "field": "parseResult",
+        "values": {
+          "default": [
+            "ok",
+            "ok",
+            "ok"
+          ],
+          "no_think": [
+            "ok",
+            "ok",
+            "ok"
+          ]
+        },
+        "sameWithinMode": {
+          "default": true,
+          "no_think": true
+        },
+        "sameAcrossModes": true,
+        "allSame": true
+      },
+      {
+        "field": "budget",
+        "values": {
+          "default": [
+            "200000",
+            "200000",
+            "200000"
+          ],
+          "no_think": [
+            "200000",
+            "200000",
+            "200000"
+          ]
+        },
+        "sameWithinMode": {
+          "default": true,
+          "no_think": true
+        },
+        "sameAcrossModes": true,
+        "allSame": true
+      },
+      {
+        "field": "approvalThreshold",
+        "values": {
+          "default": [
+            "50000",
+            "50000",
+            "50000"
+          ],
+          "no_think": [
+            "50000",
+            "50000",
+            "50000"
+          ]
+        },
+        "sameWithinMode": {
+          "default": true,
+          "no_think": true
+        },
+        "sameAcrossModes": true,
+        "allSame": true
+      },
+      {
+        "field": "merchantIds",
+        "values": {
+          "default": [
+            "[\"daiso\",\"coupang\"]",
+            "[\"daiso\",\"coupang\"]",
+            "[\"daiso\",\"coupang\"]"
+          ],
+          "no_think": [
+            "[\"daiso\",\"coupang\"]",
+            "[\"daiso\",\"coupang\"]",
+            "[\"daiso\",\"coupang\"]"
+          ]
+        },
+        "sameWithinMode": {
+          "default": true,
+          "no_think": true
+        },
+        "sameAcrossModes": true,
+        "allSame": true
+      },
+      {
+        "field": "expiresOn",
+        "values": {
+          "default": [
+            "null",
+            "null",
+            "null"
+          ],
+          "no_think": [
+            "null",
+            "null",
+            "null"
+          ]
+        },
+        "sameWithinMode": {
+          "default": true,
+          "no_think": true
+        },
+        "sameAcrossModes": true,
+        "allSame": true
+      },
+      {
+        "field": "purpose",
+        "values": {
+          "default": [
+            "\"event expenses\"",
+            "\"Event expenses for club activities\"",
+            "\"Event expenses for club activities\""
+          ],
+          "no_think": [
+            "\"Event expenses\"",
+            "\"Event expenses\"",
+            "\"Event expenses\""
+          ]
+        },
+        "sameWithinMode": {
+          "default": false,
+          "no_think": true
+        },
+        "sameAcrossModes": false,
+        "allSame": false
+      },
+      {
+        "field": "unrecognizedMerchants",
+        "values": {
+          "default": [
+            "[]",
+            "[]",
+            "[]"
+          ],
+          "no_think": [
+            "[]",
+            "[]",
+            "[]"
+          ]
+        },
+        "sameWithinMode": {
+          "default": true,
+          "no_think": true
+        },
+        "sameAcrossModes": true,
+        "allSame": true
+      }
+    ],
+    "gate": "different",
+    "differingFields": [
+      "purpose"
+    ]
+  }
+}

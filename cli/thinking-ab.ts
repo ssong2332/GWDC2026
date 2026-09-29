@@ -8,8 +8,11 @@ import type { JudgeInput, ThinkingMode } from "@/adapters/kiln/types";
 import { parseServerEnv } from "@/config/env";
 import { MERCHANT_REGISTRY } from "@/config/merchants";
 import { interpretIntentOutcome } from "@/core/domain/intent";
+import { kstDate } from "@/core/domain/policy";
+import type { PolicyCandidate } from "@/core/domain/types";
 import { AppError } from "@/core/errors";
-import type { KilnClient } from "@/core/ports";
+import type { KilnCallRepo, KilnClient } from "@/core/ports";
+import { parsePolicy } from "@/core/usecases/parsePolicy";
 import { loadEnvFiles } from "./_env";
 
 // T-11 / F-16: thinking mode A/B on the intent_judge flow (PRD OQ #17 — same request × 3 modes × 3 runs = 9 Kiln calls).
@@ -213,6 +216,32 @@ export type MeasureResult = {
 
 type JudgeResult = Awaited<ReturnType<KilnClient["judgeIntent"]>>;
 
+type Guard = ReturnType<typeof createRequestGuard>;
+
+/** One Kiln client per mode, all sending through the guard. `maxTokens` is used for both flows' max_tokens. */
+function guardedClients(
+    o: { apiKey: string; baseURL: string; model: string },
+    guard: Guard,
+    modes: readonly ThinkingMode[],
+    maxTokens: number,
+    now: () => Date,
+): Map<ThinkingMode, OpenAiKilnClient> {
+    const client = (mode: ThinkingMode) =>
+        new OpenAiKilnClient({
+            apiKey: o.apiKey,
+            baseURL: o.baseURL,
+            body: { model: o.model, maxTokensParse: maxTokens, maxTokensJudge: maxTokens, thinkingMode: mode },
+            fetch: guard.fetch as typeof globalThis.fetch,
+            // The client sleeps only before a retry: refuse it (halt) and skip the backoff wait — no retries in this run.
+            sleep: () => {
+                guard.refuseRetry();
+                return Promise.resolve();
+            },
+            now,
+        });
+    return new Map(modes.map((m) => [m, client(m)] as const));
+}
+
 /**
  * The client's record of a failed call ends on its own refused retries (status 0, attempts up to maxAttempts), so a
  * halted call is rewritten from the guard: the halting status, its error code and the real requests sent.
@@ -227,7 +256,10 @@ function withHalt(r: JudgeResult, halt: Halt | null, realRequests: number): Judg
 
 function toSample(mode: ThinkingMode, run: number, r: JudgeResult): AbSample {
     const j = interpretIntentOutcome(r.outcome, r.record.callId);
-    const rec = r.record;
+    return { ...usageOf(mode, run, r.record), judgment: j.status, reason: j.reason };
+}
+
+function usageOf(mode: ThinkingMode, run: number, rec: JudgeResult["record"]): Omit<AbSample, "judgment" | "reason"> {
     return {
         mode,
         run,
@@ -242,8 +274,6 @@ function toSample(mode: ThinkingMode, run: number, r: JudgeResult): AbSample {
         costUsd: rec.costUsd,
         finishReason: rec.finishReason,
         generationId: rec.generationId,
-        judgment: j.status,
-        reason: j.reason,
     };
 }
 
@@ -255,20 +285,7 @@ export async function measureThinkingAb(o: MeasureOptions): Promise<MeasureResul
         log(JSON.stringify({ ts: now().toISOString(), level: "info", event, ...fields }));
     const budget = THINKING_MODES.length * RUNS_PER_MODE;
     const guard = createRequestGuard(budget, o.fetch ?? globalThis.fetch);
-    const client = (mode: ThinkingMode) =>
-        new OpenAiKilnClient({
-            apiKey: o.apiKey,
-            baseURL: o.baseURL,
-            body: { model: o.model, maxTokensParse: o.maxTokensJudge, maxTokensJudge: o.maxTokensJudge, thinkingMode: mode },
-            fetch: guard.fetch as typeof globalThis.fetch,
-            // The client sleeps only before a retry: refuse it (halt) and skip the backoff wait — no retries in this run.
-            sleep: () => {
-                guard.refuseRetry();
-                return Promise.resolve();
-            },
-            now,
-        });
-    const clients = new Map(THINKING_MODES.map((m) => [m, client(m)] as const));
+    const clients = guardedClients(o, guard, THINKING_MODES, o.maxTokensJudge, now);
 
     const startedAt = now().toISOString();
     const samples: AbSample[] = [];
@@ -327,12 +344,260 @@ export async function measureThinkingAb(o: MeasureOptions): Promise<MeasureResul
     return { filePath, summary, markdown, stopped, httpRequests: guard.sent() };
 }
 
+// ---- T-14 / F-16 ④: policy_parse flow — default vs no_think × 3 runs = 6 real requests ----
+//   npm run measure:thinking -- --flow policy_parse
+// Same guard as above (hard cap 6, the first failure halts, no retries). Each run goes through the product's
+// parsePolicy use case (same prompt, validation and error codes as step 1 of the demo) and records the extracted
+// PolicyCandidate fields. Gate (PRD OQ #24, conservative default): any field that differs — free-text `purpose`
+// and run-to-run variation inside one mode included — makes the gate "different"; the gate is only recorded.
+
+export type AbFlow = "intent_judge" | "policy_parse";
+
+/** --flow value → flow. No value keeps the T-11 intent_judge run. */
+export function parseFlowArg(v: string | undefined): AbFlow {
+    if (v === undefined || v === "intent_judge") return "intent_judge";
+    if (v === "policy_parse") return "policy_parse";
+    throw new RangeError(`unknown --flow ${JSON.stringify(v)} (expected intent_judge or policy_parse)`);
+}
+
+export const POLICY_AB_MODES: readonly ThinkingMode[] = ["default", "no_think"];
+export const POLICY_AB_SCHEMA = "thinking-ab-policy/v1";
+
+/** The demo scenario's delegation sentence (cli/e2e.ts step 1 — the same sentence the judge input quotes). */
+export const AB_POLICY_INPUT = { delegationText: AB_JUDGE_INPUT.delegationText } as const;
+
+/** PolicyCandidate (src/core/domain/types.ts) with bigints as decimal strings. */
+export type PolicyFields = {
+    budget: string;
+    approvalThreshold: string;
+    merchantIds: string[];
+    expiresOn: string | null;
+    purpose: string;
+    unrecognizedMerchants: string[];
+};
+
+/** `judgment` holds the parse result: "ok" or the parsePolicy error code; `policy` is null unless it is "ok". */
+export type PolicyAbSample = AbSample & { policy: PolicyFields | null; rawArguments: string | null };
+
+export const POLICY_COMPARED_FIELDS = ["parseResult", "budget", "approvalThreshold", "merchantIds", "expiresOn", "purpose", "unrecognizedMerchants"] as const;
+export type PolicyComparedField = (typeof POLICY_COMPARED_FIELDS)[number];
+
+export type PolicyFieldRow = {
+    field: PolicyComparedField;
+    /** per mode, runs in ascending order; "-" when the run produced no policy */
+    values: Record<string, string[]>;
+    sameWithinMode: Record<string, boolean>;
+    /** every mode produced the same set of distinct values */
+    sameAcrossModes: boolean;
+    /** every run of every mode produced the identical value */
+    allSame: boolean;
+};
+
+export type PolicyGate = "same" | "different" | "undetermined";
+export type PolicyComparison = { rows: PolicyFieldRow[]; gate: PolicyGate; differingFields: PolicyComparedField[] };
+
+function fieldValue(s: PolicyAbSample, f: PolicyComparedField): string {
+    if (f === "parseResult") return s.judgment;
+    if (!s.policy) return "-";
+    if (f === "budget" || f === "approvalThreshold") return s.policy[f];
+    return JSON.stringify(s.policy[f]);
+}
+
+const allEqual = (xs: string[]) => xs.every((x) => x === xs[0]);
+const distinct = (xs: string[]) => JSON.stringify([...new Set(xs)].sort());
+
+/**
+ * Field-by-field agreement of the extracted policies. Gate: "undetermined" when a run is missing, a request failed
+ * (non-2xx / no response) or no run produced a policy; "same" when every field is identical in all runs of all
+ * modes; otherwise "different".
+ */
+export function comparePolicyFields(samples: PolicyAbSample[], runsPerMode: number = RUNS_PER_MODE): PolicyComparison {
+    if (samples.length === 0) throw new RangeError("no samples to compare");
+    for (const s of samples)
+        if (!POLICY_AB_MODES.includes(s.mode)) throw new RangeError(`unknown thinking mode for policy_parse: ${String(s.mode)}`);
+    const byMode = new Map(POLICY_AB_MODES.map((m) => [m, samples.filter((s) => s.mode === m).sort((a, b) => a.run - b.run)] as const));
+
+    const rows = POLICY_COMPARED_FIELDS.map((field): PolicyFieldRow => {
+        const values = Object.fromEntries(POLICY_AB_MODES.map((m) => [m, byMode.get(m)!.map((s) => fieldValue(s, field))]));
+        const perMode = POLICY_AB_MODES.map((m) => values[m]);
+        return {
+            field,
+            values,
+            sameWithinMode: Object.fromEntries(POLICY_AB_MODES.map((m) => [m, allEqual(values[m])])),
+            sameAcrossModes: allEqual(perMode.map(distinct)),
+            allSame: allEqual(perMode.flat()),
+        };
+    });
+    const differingFields = rows.filter((r) => !r.allSame).map((r) => r.field);
+
+    const complete = POLICY_AB_MODES.every((m) => {
+        const runs = byMode.get(m)!.map((s) => s.run);
+        return runs.length === runsPerMode && runs.every((r, i) => r === i + 1);
+    });
+    const undetermined = !complete || !samples.every(isOk) || !samples.some((s) => s.judgment === "ok");
+    const gate: PolicyGate = undetermined ? "undetermined" : differingFields.length === 0 ? "same" : "different";
+    return { rows, gate, differingFields };
+}
+
+const mdCell = (s: string) => s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+const yesNo = (b: boolean) => (b ? "YES" : "NO");
+
+export function formatPolicyFieldTable(c: PolicyComparison): string {
+    const modes = POLICY_AB_MODES;
+    const head = `| field | ${modes.map((m) => `${m} (run 1 / 2 / 3)`).join(" | ")} | ${modes.map((m) => `same within ${m}`).join(" | ")} | same across modes | all same |`;
+    const sep = `|---|${modes.map(() => "---|").join("")}${modes.map(() => ":---:|").join("")}:---:|:---:|`;
+    const rows = c.rows.map(
+        (r) =>
+            `| ${r.field} | ${modes.map((m) => mdCell(r.values[m].join(" / "))).join(" | ")} | ${modes.map((m) => yesNo(r.sameWithinMode[m])).join(" | ")} | ${yesNo(r.sameAcrossModes)} | ${yesNo(r.allSame)} |`,
+    );
+    return [
+        head,
+        sep,
+        ...rows,
+        "",
+        `Gate: ${c.gate.toUpperCase()}${c.differingFields.length ? ` (differing fields: ${c.differingFields.join(", ")})` : ""}`,
+        "Gate rule (PRD OQ #24, conservative default): any field differing in any run — purpose wording and variation inside one mode included — is DIFFERENT; a missing or failed run is UNDETERMINED. Recorded only — the default mode is not changed here.",
+    ].join("\n");
+}
+
+export type PolicyMeasureOptions = Omit<MeasureOptions, "maxTokensJudge"> & { maxTokensParse: number };
+export type PolicyMeasureResult = MeasureResult & { comparison: PolicyComparison | null; fieldTable: string };
+
+function toPolicyFields(c: PolicyCandidate): PolicyFields {
+    return {
+        budget: c.budget.toString(),
+        approvalThreshold: c.approvalThreshold.toString(),
+        merchantIds: c.merchantIds,
+        expiresOn: c.expiresOn,
+        purpose: c.purpose,
+        unrecognizedMerchants: c.unrecognizedMerchants,
+    };
+}
+
+/** Runs the policy_parse A/B (round-robin: run 1 = default, no_think, then run 2, …), saves the raw JSON, returns the tables. */
+export async function measurePolicyAb(o: PolicyMeasureOptions): Promise<PolicyMeasureResult> {
+    const now = o.now ?? (() => new Date());
+    const log = o.log ?? ((line: string) => console.log(line));
+    const logJson = (event: string, fields: Record<string, unknown>) =>
+        log(JSON.stringify({ ts: now().toISOString(), level: "info", event, ...fields }));
+    const budget = POLICY_AB_MODES.length * RUNS_PER_MODE;
+    const guard = createRequestGuard(budget, o.fetch ?? globalThis.fetch);
+    const clients = guardedClients(o, guard, POLICY_AB_MODES, o.maxTokensParse, now);
+
+    const start = now();
+    const startedAt = start.toISOString();
+    // One fixed "today" for every run so expires_on inference sees the same date in all 6 requests.
+    const clock = { now: () => start };
+    const samples: PolicyAbSample[] = [];
+    let stopped: Stopped | null = null;
+    outer: for (let run = 1; run <= RUNS_PER_MODE; run++) {
+        for (const mode of POLICY_AB_MODES) {
+            const inner = clients.get(mode)!;
+            let call: JudgeResult | null = null;
+            const kiln: KilnClient = {
+                parsePolicy: async (i) => {
+                    const sentBefore = guard.sent();
+                    call = withHalt(await inner.parsePolicy(i), guard.halt(), guard.sent() - sentBefore);
+                    return call;
+                },
+                judgeIntent: () => Promise.reject(new Error("judgeIntent is not part of the policy_parse A/B")),
+            };
+            const noopRepo: KilnCallRepo = { insert: () => {}, findById: () => null, aggregateByFlow: () => [] };
+            const parsed = await parsePolicy(
+                { kiln, kilnCalls: noopRepo, merchants: MERCHANT_REGISTRY, clock, chainId: 0, vault: "0x0000000000000000000000000000000000000000" },
+                { delegationText: AB_POLICY_INPUT.delegationText },
+            );
+            const r = call as JudgeResult | null;
+            if (!r) throw new Error("parsePolicy returned without calling Kiln");
+            const s: PolicyAbSample = {
+                ...usageOf(mode, run, r.record),
+                judgment: parsed.ok ? "ok" : parsed.code,
+                reason: parsed.ok ? parsed.warnings.join("; ") : parsed.message,
+                policy: parsed.ok ? toPolicyFields(parsed.candidate) : null,
+                rawArguments: r.outcome.kind === "tool_call" ? r.outcome.rawArguments : null,
+            };
+            samples.push(s);
+            logJson("thinking_ab.call", {
+                flow: "policy_parse",
+                mode,
+                run,
+                httpStatus: s.httpStatus,
+                promptTokens: s.promptTokens,
+                completionTokens: s.completionTokens,
+                reasoningTokens: s.reasoningTokens,
+                totalTokens: s.totalTokens,
+                latencyMs: s.latencyMs,
+                generationId: s.generationId,
+                parseResult: s.judgment,
+            });
+            if (r.outcome.kind === "http_error") {
+                const h = guard.halt();
+                stopped = { mode, run, httpStatus: h?.status ?? r.outcome.status, code: r.outcome.code ?? "KILN_ERROR", message: h?.message ?? "request failed" };
+                break outer;
+            }
+        }
+    }
+    const finishedAt = now().toISOString();
+
+    const summary = samples.length > 0 ? summarizeAb(samples) : null;
+    const markdown = summary ? formatAbMarkdown(summary) : "(no samples)";
+    const comparison = samples.length > 0 ? comparePolicyFields(samples) : null;
+    const fieldTable = comparison ? formatPolicyFieldTable(comparison) : "(no samples)";
+    fs.mkdirSync(o.outDir, { recursive: true });
+    const filePath = path.join(o.outDir, `thinking-ab-policy_parse-${startedAt.replace(/[:.]/g, "-")}.json`);
+    const file = {
+        schema: POLICY_AB_SCHEMA,
+        task: "T-14",
+        flow: "policy_parse",
+        model: o.model,
+        maxTokensParse: o.maxTokensParse,
+        modes: POLICY_AB_MODES,
+        runsPerMode: RUNS_PER_MODE,
+        order: "round-robin (run 1: default, no_think; then run 2, run 3)",
+        httpRequestBudget: budget,
+        httpRequestsSent: guard.sent(),
+        retryPolicy: "none — the first failed request halts the run",
+        startedAt,
+        finishedAt,
+        todayKst: kstDate(start),
+        input: { ...AB_POLICY_INPUT },
+        gateRule:
+            "PRD OQ #24 conservative default: any field differing in any run (purpose wording and variation inside one mode included) = different; missing/failed run = undetermined. Recorded only.",
+        stopped,
+        samples,
+        summary,
+        comparison,
+    };
+    fs.writeFileSync(filePath, `${JSON.stringify(file, null, 2)}\n`, "utf8");
+    return { filePath, summary, markdown, stopped, httpRequests: guard.sent(), comparison, fieldTable };
+}
+
 async function main(): Promise<number> {
-    const { values } = parseArgs({ options: { out: { type: "string" } } });
+    const { values } = parseArgs({ options: { out: { type: "string" }, flow: { type: "string" } } });
+    const flow = parseFlowArg(values.flow);
     // Only .env (the Kiln variables live there, .env.example) — wallet keys in .env.cli are not needed here.
     loadEnvFiles({ files: [".env"] });
     const env = parseServerEnv({ ...process.env, KILN_MODE: "real" });
     if (!env.kiln.apiKey) throw new AppError("ENV_INVALID", "KILN_API_KEY is required");
+    if (flow === "policy_parse") {
+        const p = await measurePolicyAb({
+            apiKey: env.kiln.apiKey,
+            baseURL: env.kiln.baseUrl,
+            model: env.kiln.model,
+            maxTokensParse: env.kiln.maxTokensParse,
+            outDir: path.resolve(values.out ?? "evidence/thinking-ab"),
+        });
+        console.log(`\nThinking mode A/B — policy_parse, model ${env.kiln.model}, ${p.httpRequests} HTTP requests (judgments column = parse result)`);
+        console.log(p.markdown);
+        console.log(`\nExtracted policy fields:`);
+        console.log(p.fieldTable);
+        console.log(`\nraw: ${path.relative(process.cwd(), p.filePath)}`);
+        if (p.stopped) {
+            console.error(JSON.stringify({ ts: new Date().toISOString(), level: "error", event: "thinking_ab.stopped", ...p.stopped }));
+            return 1;
+        }
+        return 0;
+    }
     const r = await measureThinkingAb({
         apiKey: env.kiln.apiKey,
         baseURL: env.kiln.baseUrl,

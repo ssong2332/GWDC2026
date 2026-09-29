@@ -4,13 +4,20 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     AB_JUDGE_INPUT,
+    AB_POLICY_INPUT,
+    POLICY_AB_MODES,
     THINKING_MODES,
+    comparePolicyFields,
     createRequestGuard,
     formatAbMarkdown,
+    formatPolicyFieldTable,
+    measurePolicyAb,
     measureThinkingAb,
+    parseFlowArg,
     savingsPct,
     summarizeAb,
     type AbSample,
+    type PolicyAbSample,
 } from "../../cli/thinking-ab";
 
 // T-11 / F-16: thinking mode A/B on the intent_judge flow. Pure aggregation + a fake Kiln (fake fetch) — no network.
@@ -339,4 +346,216 @@ describe("measureThinkingAb (fake Kiln)", () => {
         const texts = [JSON.stringify(r.stopped), r.stopped!.message, fs.readFileSync(r.filePath, "utf8"), r.markdown, ...logs];
         for (const text of texts) expect(text).not.toContain(KEY);
     }, 20_000);
+});
+
+// ---- T-14 / F-16 ④: policy_parse flow (default vs no_think × 3 runs = 6 real requests) ----
+
+const policy = (over: Partial<NonNullable<PolicyAbSample["policy"]>> = {}): NonNullable<PolicyAbSample["policy"]> => ({
+    budget: "200000",
+    approvalThreshold: "50000",
+    merchantIds: ["daiso", "coupang"],
+    expiresOn: null,
+    purpose: "Event expenses",
+    unrecognizedMerchants: [],
+    ...over,
+});
+
+const pSample = (mode: AbSample["mode"], run: number, over: Partial<PolicyAbSample> = {}): PolicyAbSample => ({
+    ...sample({ mode, run, judgment: "ok", reason: "" }),
+    policy: policy(),
+    rawArguments: "{}",
+    ...over,
+});
+
+/** default 1..3 and no_think 1..3, each with the same policy unless overridden by `patch(mode, run)`. */
+const sixSamples = (patch: (mode: AbSample["mode"], run: number) => Partial<PolicyAbSample> = () => ({})) =>
+    POLICY_AB_MODES.flatMap((mode) => [1, 2, 3].map((run) => pSample(mode, run, patch(mode, run))));
+
+describe("comparePolicyFields (per-field agreement within each mode and across modes — OQ #24 conservative gate)", () => {
+    it("normal: 6 identical extractions → every field agrees, gate same", () => {
+        const c = comparePolicyFields(sixSamples());
+        expect(c.rows.map((r) => r.field)).toEqual(["parseResult", "budget", "approvalThreshold", "merchantIds", "expiresOn", "purpose", "unrecognizedMerchants"]);
+        for (const r of c.rows) expect(r).toMatchObject({ sameWithinMode: { default: true, no_think: true }, sameAcrossModes: true, allSame: true });
+        expect(c.rows.find((r) => r.field === "budget")!.values).toEqual({ default: ["200000", "200000", "200000"], no_think: ["200000", "200000", "200000"] });
+        expect(c.gate).toBe("same");
+        expect(c.differingFields).toEqual([]);
+    });
+
+    it("boundary: only purpose wording differs in one no_think run → purpose differs (free-text counts), gate different", () => {
+        const c = comparePolicyFields(sixSamples((m, r) => (m === "no_think" && r === 2 ? { policy: policy({ purpose: "Event costs" }) } : {})));
+        const p = c.rows.find((r) => r.field === "purpose")!;
+        expect(p).toMatchObject({ sameWithinMode: { default: true, no_think: false }, sameAcrossModes: false, allSame: false });
+        expect(c.rows.find((r) => r.field === "budget")!.allSame).toBe(true);
+        expect(c.gate).toBe("different");
+        expect(c.differingFields).toEqual(["purpose"]);
+    });
+
+    it("boundary: variation inside both modes with the same value set → across-modes true but allSame false, gate different; merchant order counts", () => {
+        const c = comparePolicyFields(
+            sixSamples((m, r) => ((m === "default" && r === 3) || (m === "no_think" && r === 1) ? { policy: policy({ merchantIds: ["coupang", "daiso"] }) } : {})),
+        );
+        const mer = c.rows.find((r) => r.field === "merchantIds")!;
+        expect(mer).toMatchObject({ sameWithinMode: { default: false, no_think: false }, sameAcrossModes: true, allSame: false });
+        expect(c.gate).toBe("different");
+    });
+
+    it("error: a run whose extraction failed validation → parseResult differs, its fields recorded as '-', gate different", () => {
+        const c = comparePolicyFields(sixSamples((m, r) => (m === "no_think" && r === 3 ? { judgment: "SCHEMA_INVALID", reason: "purpose: too long", policy: null } : {})));
+        expect(c.rows.find((r) => r.field === "parseResult")!.values.no_think).toEqual(["ok", "ok", "SCHEMA_INVALID"]);
+        expect(c.rows.find((r) => r.field === "budget")!.values.no_think[2]).toBe("-");
+        expect(c.gate).toBe("different");
+        expect(c.differingFields).toContain("parseResult");
+    });
+
+    it("error: a missing run or an HTTP failure → gate undetermined; no samples or unknown mode → RangeError", () => {
+        expect(comparePolicyFields(sixSamples().slice(0, 5)).gate).toBe("undetermined");
+        expect(comparePolicyFields(sixSamples((m, r) => (m === "default" && r === 2 ? { httpStatus: 429, judgment: "KILN_RATE_LIMITED", policy: null } : {}))).gate).toBe(
+            "undetermined",
+        );
+        expect(() => comparePolicyFields([])).toThrow(RangeError);
+        expect(() => comparePolicyFields([pSample("kwargs_off", 1)])).toThrow(/mode/);
+    });
+});
+
+describe("formatPolicyFieldTable", () => {
+    it("one row per field with per-mode values and agreement marks, plus the gate line", () => {
+        const text = formatPolicyFieldTable(comparePolicyFields(sixSamples((m, r) => (m === "no_think" && r === 2 ? { policy: policy({ purpose: "Event costs" }) } : {}))));
+        const purposeLine = text.split("\n").find((l) => l.startsWith("| purpose"))!;
+        expect(purposeLine).toContain('"Event costs"');
+        expect(purposeLine).toMatch(/\| NO \|$/);
+        expect(text.split("\n").find((l) => l.startsWith("| budget"))).toMatch(/\| YES \|$/);
+        expect(text).toMatch(/Gate: DIFFERENT/);
+    });
+});
+
+describe("parseFlowArg (flow selection — no argument keeps the T-11 intent_judge run)", () => {
+    it("undefined → intent_judge, policy_parse → policy_parse, anything else → error", () => {
+        expect(parseFlowArg(undefined)).toBe("intent_judge");
+        expect(parseFlowArg("intent_judge")).toBe("intent_judge");
+        expect(parseFlowArg("policy_parse")).toBe("policy_parse");
+        expect(() => parseFlowArg("policy")).toThrow(/flow/);
+    });
+});
+
+/** A fake Kiln answering submit_spending_policy; argsFor(i) overrides the arguments of the i-th request. */
+function fakePolicyKiln(statusFor: (i: number) => number = () => 200, argsFor: (i: number) => Record<string, unknown> = () => ({})) {
+    const seen: Seen[] = [];
+    const fetch = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        seen.push({ body, auth: new Headers(init?.headers).get("authorization") });
+        const i = seen.length;
+        const status = statusFor(i);
+        if (status !== 200) return new Response(JSON.stringify({ error: { message: "nope" } }), { status, headers: { "content-type": "application/json" } });
+        const thinking = !JSON.stringify(body.messages).includes("/no_think");
+        const args = {
+            total_budget_krw: 200000,
+            approval_threshold_krw: 50000,
+            allowed_merchant_ids: ["daiso", "coupang"],
+            expires_on: null,
+            purpose: "Event expenses",
+            unrecognized_merchants: [],
+            ...argsFor(i),
+        };
+        return new Response(
+            JSON.stringify({
+                id: `c${i}`,
+                object: "chat.completion",
+                created: 1,
+                model: "qwen3-32b",
+                choices: [
+                    {
+                        index: 0,
+                        finish_reason: "tool_calls",
+                        message: { role: "assistant", content: null, tool_calls: [{ id: "t", type: "function", function: { name: "submit_spending_policy", arguments: JSON.stringify(args) } }] },
+                    },
+                ],
+                usage: {
+                    prompt_tokens: 900,
+                    completion_tokens: thinking ? 400 : 80,
+                    total_tokens: thinking ? 1300 : 980,
+                    completion_tokens_details: { reasoning_tokens: thinking ? 320 : 0 },
+                },
+            }),
+            { status: 200, headers: { "content-type": "application/json", "x-neocloud-generation-id": `gen-${i}` } },
+        );
+    };
+    return { fetch: fetch as typeof globalThis.fetch, seen };
+}
+
+const pOpts = (fetch: typeof globalThis.fetch, logs: string[]) => ({
+    apiKey: KEY,
+    baseURL: "https://kiln.test/v1",
+    model: "qwen3-32b",
+    maxTokensParse: 2048,
+    fetch,
+    outDir: dir,
+    now: () => new Date("2026-09-29T01:02:03.456Z"),
+    log: (line: string) => logs.push(line),
+});
+
+describe("measurePolicyAb (fake Kiln)", () => {
+    it("default/no_think × 3 = exactly 6 requests round-robin, extracted fields + tokens saved, gate same", async () => {
+        const k = fakePolicyKiln();
+        const r = await measurePolicyAb(pOpts(k.fetch, []));
+
+        expect(POLICY_AB_MODES).toEqual(["default", "no_think"]);
+        expect(k.seen).toHaveLength(6);
+        expect(r.httpRequests).toBe(6);
+        expect(r.stopped).toBeNull();
+        const noThink = (b: Record<string, unknown>) => JSON.stringify(b.messages).includes("/no_think");
+        expect(k.seen.map((s) => (noThink(s.body) ? "no_think" : "default"))).toEqual(["default", "no_think", "default", "no_think", "default", "no_think"]);
+        for (const s of k.seen) {
+            expect(s.body.chat_template_kwargs).toBeUndefined();
+            expect(JSON.stringify(s.body.tools)).toContain("submit_spending_policy");
+            expect(JSON.stringify(s.body.messages)).toContain(AB_POLICY_INPUT.delegationText);
+        }
+        expect(AB_POLICY_INPUT.delegationText).toBe(AB_JUDGE_INPUT.delegationText);
+
+        expect(r.comparison!.gate).toBe("same");
+        expect(r.summary!.modes[1]).toMatchObject({ mode: "no_think", avgReasoningTokens: 0, reasoningSavingsPct: 100 });
+        const saved = JSON.parse(fs.readFileSync(r.filePath, "utf8"));
+        expect(path.basename(r.filePath)).toMatch(/^thinking-ab-policy_parse-/);
+        expect(saved).toMatchObject({ task: "T-14", flow: "policy_parse", httpRequestBudget: 6, httpRequestsSent: 6, modes: ["default", "no_think"] });
+        expect(saved.samples).toHaveLength(6);
+        expect(saved.samples[0]).toMatchObject({
+            mode: "default",
+            run: 1,
+            generationId: "gen-1",
+            reasoningTokens: 320,
+            judgment: "ok",
+            policy: { budget: "200000", approvalThreshold: "50000", merchantIds: ["daiso", "coupang"], expiresOn: null, purpose: "Event expenses", unrecognizedMerchants: [] },
+        });
+        expect(saved.comparison.gate).toBe("same");
+        expect(r.fieldTable).toContain("| budget");
+    });
+
+    it("a no_think run extracting a different threshold → gate different, the field is named", async () => {
+        const k = fakePolicyKiln(undefined, (i) => (i === 4 ? { approval_threshold_krw: 30000 } : {}));
+        const r = await measurePolicyAb(pOpts(k.fetch, []));
+        expect(k.seen).toHaveLength(6);
+        expect(r.comparison!.gate).toBe("different");
+        expect(r.comparison!.differingFields).toEqual(["approvalThreshold"]);
+    });
+
+    it("error: 429 on the 3rd request → stops after 3 real requests, no retry, gate undetermined", async () => {
+        const k = fakePolicyKiln((i) => (i === 3 ? 429 : 200));
+        const r = await measurePolicyAb(pOpts(k.fetch, []));
+        expect(k.seen).toHaveLength(3);
+        expect(r.stopped).toMatchObject({ mode: "default", run: 2, httpStatus: 429, code: "KILN_RATE_LIMITED" });
+        expect(r.comparison!.gate).toBe("undetermined");
+        const saved = JSON.parse(fs.readFileSync(r.filePath, "utf8"));
+        expect(saved.samples[2]).toMatchObject({ httpStatus: 429, attempts: 1, judgment: "KILN_RATE_LIMITED", policy: null });
+    });
+
+    it.each([
+        ["success", (): number => 200],
+        ["402", (): number => 402],
+    ] as const)("the API key is sent as auth but not in the file, tables or log lines (%s path)", async (_n, statusFor) => {
+        const k = fakePolicyKiln(statusFor);
+        const logs: string[] = [];
+        const r = await measurePolicyAb(pOpts(k.fetch, logs));
+        expect(k.seen[0].auth).toBe(`Bearer ${KEY}`);
+        expect(logs.length).toBeGreaterThan(0);
+        for (const text of [fs.readFileSync(r.filePath, "utf8"), r.markdown, r.fieldTable, JSON.stringify(r.stopped), ...logs]) expect(text).not.toContain(KEY);
+    });
 });
