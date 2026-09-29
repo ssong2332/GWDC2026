@@ -81,6 +81,8 @@
 | A/B 스크립트 오류 경로 기록 정확화 (중단 시 실제 status·attempts·code 기록, 2xx 파싱 실패 포함 모든 재시도 차단, 실패 경로 키 비노출 테스트) | 완료 (T-13, 커밋 c1f6644) |
 | Thinking mode A/B 측정 — 정책 변환(`policy_parse`) 흐름 (default vs no_think × 3회, 실제 Kiln 6회) | 완료 (T-14) — 결과는 아래 "Thinking mode A/B — policy_parse (T-14)" 참조 |
 | `KILN_THINKING_MODE` 기본값 `default` → `no_think` 변경 | 완료 (T-15, D-39, ADR-0007) |
+| 대시보드 Tx 링크 접근 이름을 전체 해시로(`aria-label`) · ≤1024px 표 안 배지 줄바꿈 방지로 행 높이 과다 해소 (`TxHashLink.tsx`, `globals.css`, 테스트 `txHashLink.test.ts`) | 완료 (T-16, 리뷰 치명 0건·QA DoD 통과 — `docs/Tasks.md` 확인) — 375/768px "Too many attempts" 행 135px → 61.4px, 1280px 불변(implementer 측정, 인용) |
+| Thinking mode A/B 측정 — 의도 판단 "목적 불일치" 케이스 (제출 증거 step 5와 같은 입력, default·no_think × 3회, 실제 Kiln 6회) | 완료 (T-18, 리뷰 치명 0건·QA DoD 통과 — `docs/Tasks.md` 확인) — 결과는 아래 "Thinking mode A/B — 목적 불일치 (T-18)" 참조 |
 
 작업 단위·근거는 `docs/Tasks.md` 참조.
 
@@ -170,6 +172,7 @@ cp .env.example .env
 | Thinking mode A/B 측정 (T-11 — 실제 Kiln 유료 호출 정확히 9회: intent_judge × default·kwargs_off·no_think × 3회, 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/ JSON + stdout Markdown 표) | `npm run measure:thinking` | 2026-09-29 |
 | 테스트 ② 단일 파일 (T-11 측정 스크립트 — 가짜 Kiln, 네트워크 없음) | `npx vitest run tests/unit/thinkingAb.test.ts` | 2026-09-29 |
 | Thinking mode A/B 측정 — 정책 변환 흐름 (T-14 — 실제 Kiln 유료 호출 상한 6회: policy_parse × default·no_think × 3회, 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/thinking-ab-policy_parse-*.json + stdout 토큰 표·필드별 일치 표) | `npm run measure:thinking -- --flow policy_parse` | 2026-09-29 |
+| Thinking mode A/B 측정 — 의도 판단 "목적 불일치" 케이스 (T-18 — 실제 Kiln 유료 호출 상한 6회: intent_judge × default·no_think × 3회, 입력은 제출 증거 step 5(Daiso 15,000 "Personal gaming mouse"), 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/thinking-ab-intent_judge-mismatch-*.json + stdout 토큰 표·게이트 줄) | `npm run measure:thinking -- --flow intent_judge --case mismatch` | 2026-09-29 |
 
 통합 테스트(계층 ③)는 포트 8546의 Hardhat 노드 하나를 공유하고, 동시에 여러 번 실행하면 잠금 파일로 직렬화되어 한 번에 하나씩만 돈다(`tests/integration/setup/hardhat-node.ts`).
 
@@ -291,6 +294,22 @@ Qwen3의 reasoning(thinking) 토큰을 끄는 방법이 실제로 통하는지 K
 - 재현: `npm run measure:thinking -- --flow policy_parse` — **실제 유료 Kiln 호출이 정확히 6회 발생한다**(실패 시 재시도 없이 중단). `.env`의 `KILN_API_KEY`가 필요하다.
 - 한계: 입력 1개·모드당 3회 소표본이다. 지연에는 프롬프트 캐시 영향이 섞였을 수 있다(추정 — `cachedTokens`가 no_think 1·2회차 169, 3회차 627로 다름). `no_think`의 reasoning 토큰 1(3회 모두) 원인은 확인하지 못했다(추정).
 
+### Thinking mode A/B — 목적 불일치 (T-18)
+
+`no_think`가 "목적 불일치" 안전장치 판단(승인 대기로 엄격화하는 경로)을 유지하는지 확인했다. 수치는 결과 파일 `evidence/thinking-ab/thinking-ab-intent_judge-mismatch-2026-09-29T07-40-59-314Z.json`의 `summary`·`gate` 원문이다(docs 에이전트가 파일을 직접 읽고 대조).
+
+- 측정 조건: `intent_judge` 흐름, 입력은 제출 증거 step 5와 같다 — Daiso, 15,000, "Personal gaming mouse"(`evidence/base-sepolia/evidence.json:320-367`, `cli/e2e.ts:273`). 모델 `qwen3-32b`, 모드 2개(`default` / `no_think`) × 3회 = 실제 Kiln 요청 6회(전부 HTTP 200, `attempts` 1, 재시도·중단 없음), 2026-09-29 실행, 라운드로빈 순서.
+- 판단 결과: 두 모드 모두 6/6 `mismatch`(목적 불일치 → 승인 대기, `agentReviewRequest: true`). 게이트 `pass`(`no_think` 3/3 mismatch). 따라서 **`no_think`는 목적 불일치 안전장치 판단을 유지한다** — 기본값 `no_think` 유지 근거(D-39, PRD OQ #16 재확인 조건).
+- 모드별 평균 (3회) — 괄호는 `default` 대비 절감률:
+
+| mode | prompt | completion | reasoning | total | latency (ms) |
+|---|---:|---:|---:|---:|---:|
+| default | 345 | 254 | 212 | 599 | 4141 |
+| no_think | 349 | 44 (-82.7%) | 1 (-99.5%) | 393 (-34.4%) | 1061.3 (-74.4%) |
+
+- 재현: `npm run measure:thinking -- --flow intent_judge --case mismatch` — **실제 유료 Kiln 호출이 정확히 6회 발생한다**(실패 시 재시도 없이 중단). `.env`의 `KILN_API_KEY`가 필요하다.
+- 한계: 입력 1개·모드당 3회 소표본이다 — 다른 종류의 목적 불일치까지 일반화하지 못한다. 지연에는 프롬프트 캐시 영향이 섞였을 수 있다(추정 — `cachedTokens`가 no_think 1회차 58, 2·3회차 348로 다름). `no_think`의 reasoning 토큰 1(3회 모두) 원인은 확인하지 못했다(추정).
+
 ## Verify it yourself (third party) / 제3자 직접 검증
 
 키·DB·운영자 없이 공개 RPC만으로 검증할 수 있다:
@@ -318,7 +337,7 @@ npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
 - 지갑 서명 UI는 통합 테스트(`tests/integration/walletOwnerAction.test.ts` 등)로만 검증했다 — 실제 MetaMask 등 브라우저 확장에서의 서명 흐름은 자동 검증되지 않았다(T-05 구현 근거, 인용).
 - 효율 리포트의 에너지 수치는 추정(assumed)이지 측정값이 아니다 — 위 "Efficiency" 절의 가정·출처 참조.
 - Base Sepolia 공개 RPC(`sepolia.base.org`)는 `eth_getLogs`를 1,000블록 범위로 제한한다(-32614) — `src/config/constants.ts`의 `LOG_BLOCK_CHUNK = 1_000n`으로 청크를 나눠 대응했다(T-07).
-- Qwen3 thinking 모드를 끄는 방법의 효과는 T-11(`intent_judge`)·T-14(`policy_parse`)에서 측정했다(위 두 소절 참조 — reasoning 토큰 제거, T-11 판단 9/9 match, T-14 구조 필드 6회 동일). `KILN_THINKING_MODE` 기본값은 `no_think`로 변경됐다(T-15, D-39) — Base Sepolia 제출 증거의 reasoning 토큰 1,864(`npm run report:efficiency` total 행)는 변경 전 `default` 모드 실행분이다. 남은 한계: ① 소표본(흐름당 입력 1개, 모드당 3회) ② `no_think`의 reasoning 토큰 1 원인 미확인(추정).
+- Qwen3 thinking 모드를 끄는 방법의 효과는 T-11(`intent_judge`)·T-14(`policy_parse`)에서 측정했다(위 두 소절 참조 — reasoning 토큰 제거, T-11 판단 9/9 match, T-14 구조 필드 6회 동일, T-18 목적 불일치 판단도 no_think에서 6/6 mismatch 유지 — 기본값 no_think 근거). `KILN_THINKING_MODE` 기본값은 `no_think`로 변경됐다(T-15, D-39) — Base Sepolia 제출 증거의 reasoning 토큰 1,864(`npm run report:efficiency` total 행)는 변경 전 `default` 모드 실행분이다. 남은 한계: ① 소표본(흐름당 입력 1개, 모드당 3회) ② `no_think`의 reasoning 토큰 1 원인 미확인(추정).
 - 웹 접근성은 label·aria 연결만 리뷰에서 확인했다 — 명도 대비와 키보드 포커스 순서는 수치로 측정하지 않았다(QA 미검증 항목).
 - 공개 RPC 잔여 위험(추정, 이번 실제 실행에서는 나타나지 않음): 부하분산된 공개 RPC의 뒤처진 노드가 ① `getLogs` 범위를 조용히 잘라 이벤트를 놓치거나 ② 연속 tx에서 nonce를 늦게 읽어 "nonce too low"를 내거나 ③ `readContract`(`getState`·`getPending`)가 오래된 상태를 돌려줄 수 있다. 전용 RPC를 쓰면 완화된다(T-07 implementer 보고, reviewer 권고 — 인용).
 - Next.js 16의 `next dev`/`next build`가 루트 `AGENTS.md`를 자동으로 덧붙이는 문제가 있다 — 아래 "Known issue" 절 참조.

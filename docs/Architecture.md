@@ -1,6 +1,6 @@
 # Architecture — Agent Spending Control & Evidence Layer (가칭 — PRD Open Question #2)
 
-> 소유자: architect | 상태: 승인 | 최종 수정: 2026-09-29 (CI 추가 — D-37, ADR-0006. 바뀐 절: 구조 개요 트리 1줄, 테스트 전략 "CI", 배포 "빌드·릴리스 파이프라인" 행, 주요 결정 표 1행 — 이 부분만 사용자 확인 대상) / 2026-09-29 (에너지 표기 — D-38. 바뀐 절: 7절 `EfficiencyReport` 주석 1줄, 관측성 "에너지 추정 가정" 제목·식 행·"표시 문구 규격" 소절 신설 — 이 부분만 사용자 확인 대상) / 2026-09-29 (thinking 기본값 — D-39, ADR-0007. 바뀐 절: Kiln 요청 규격 표 "thinking" 행, `.env.example` 변수 목록 `KILN_THINKING_MODE` 행, 주요 결정 표 1행 — 이 부분만 사용자 확인 대상) / 2026-09-29 (문서 동기화만 — 결정 변경 없음: ADR-0006·0007 승인 상태, T-14 게이트 통과·T-15 적용 사실, CI 액션 버전 실제값 `@v7`, 주요 결정 표에 누락된 ADR-0004·0005 행 추가)
+> 소유자: architect | 상태: 승인 | 최종 수정: 2026-09-29 (CI 추가 — D-37, ADR-0006. 바뀐 절: 구조 개요 트리 1줄, 테스트 전략 "CI", 배포 "빌드·릴리스 파이프라인" 행, 주요 결정 표 1행 — 이 부분만 사용자 확인 대상) / 2026-09-29 (에너지 표기 — D-38. 바뀐 절: 7절 `EfficiencyReport` 주석 1줄, 관측성 "에너지 추정 가정" 제목·식 행·"표시 문구 규격" 소절 신설 — 이 부분만 사용자 확인 대상) / 2026-09-29 (thinking 기본값 — D-39, ADR-0007. 바뀐 절: Kiln 요청 규격 표 "thinking" 행, `.env.example` 변수 목록 `KILN_THINKING_MODE` 행, 주요 결정 표 1행 — 이 부분만 사용자 확인 대상) / 2026-09-29 (문서 동기화만 — 결정 변경 없음: ADR-0006·0007 승인 상태, T-14 게이트 통과·T-15 적용 사실, CI 액션 버전 실제값 `@v7`, 주요 결정 표에 누락된 ADR-0004·0005 행 추가) / 2026-09-29 (UI 언어 전환 F-17·N-11 — D-40~D-43, ADR-0008(제안). 바뀐 절: 구조 개요 트리 `ui/i18n` 2줄, 모듈 경계 표 1행(`src/ui/i18n`)·`src/app (pages)` 행, 1절 사유 표 머리 주석 1줄, 10절 "재사용 컴포넌트" 행·"문구 언어" 행 + 소절 "UI 언어 (F-17)" 신설, 에러 처리 "실패가 사용자에게 드러나는 방식" 행 끝 문장, 테스트 전략 ② 행·"화면" 행 + "UI 언어 테스트" 소절 신설, 관측성 "표시 문구 규격 — 한국어판 (D-43)" 소절 신설, 주요 결정 표 1행 — 이 부분만 사용자 확인 대상)
 > 상태는 초안/승인 두 가지. "승인"으로 바꾸는 것은 사용자만 한다 — 승인 전 구현 착수 금지 (AGENTS.md 파이프라인 규칙).
 
 ## 이 문서를 읽는 법 (금지 먼저)
@@ -67,7 +67,8 @@
 │  │  └─ api/ policy/parse · owner-actions/prepare · owner-actions/confirm · vault/state · vault/activity · receipts/[requestId] · audit/[txHash] · efficiency
 │  └─ ui/                          # 클라이언트 컴포넌트·훅
 │     ├─ wallet/ WalletProvider.tsx · WalletGate.tsx · useOwnerAction.ts
-│     ├─ hooks/  useApi.ts
+│     ├─ hooks/  useApi.ts · useDocumentTitle.ts
+│     ├─ i18n/   locale.ts(순수 — 서버 레이아웃도 import) · en.ts · ko.ts · messages.ts · LocaleProvider.tsx · LanguageSwitcher.tsx   # F-17, D-40, ADR-0008
 │     └─ components/ AsyncView.tsx · TxHashLink.tsx · Krw.tsx · ReasonBadge.tsx · NavBar.tsx
 ├─ cli/                            # tsx 실행 스크립트 (키를 쓰는 유일한 프로세스)
 │  ├─ _env.ts                      # .env → .env.cli 로드 + parseCliEnv(process.env) (ADR-0005). src/server/** import 금지
@@ -106,7 +107,8 @@ Hardhat 산출물 경로는 `chain/build/artifacts`, `chain/build/cache`로 설�
 | `src/config` | 환경 변수 스키마·순수 parse(서버·CLI·테스트 공용, 부작용 없음), 상수(리터럴), 가맹점 레지스트리 | zod, `core/domain/types`(merchants.ts만) |
 | `src/server/env.ts` | 서버 프로세스 env 로드: `server-only`, 개인키 존재 시 시작 거부 (ADR-0005) | `config/env` |
 | `src/server/container.ts` | Route Handler용 의존성 조립 (키 없는 어댑터만) | adapters, config, `server/env` |
-| `src/app` (pages) | 4화면 라우팅·레이아웃 | `src/ui` |
+| `src/app` (pages) | 4화면 라우팅·레이아웃. 루트 레이아웃은 `lang` 쿠키로 초기 UI 언어·`<html lang>`을 정한다(D-40) | `src/ui`, `next/headers`(`cookies` — layout.tsx만) |
+| `src/ui/i18n` | UI 언어: 언어 결정·쿠키 규칙(순수), `ko`/`en` 문구 사전, 언어 context·전환 버튼 (F-17) | `@/config/constants`(`UI_LOCALE`, `ENERGY_ASSUMPTIONS`), React. `src/app/api/**`·`src/core/**`·`cli/**`에서 import 금지(D-41) |
 | `src/app/api` | Route Handler: 입력 검증 → 유스케이스 호출 → DTO 직렬화(bigint→문자열) → 에러 매핑 | `server/container`, `core/usecases` |
 | `src/ui` | 지갑 연결·서명, 화면 상태(로딩·빈 값·에러), 재사용 컴포넌트 | viem(브라우저), `core/domain`(reasons, 표시용), generated ABI 상수(`adapters/chain/generated/PolicyVault`), `app/api/_lib/dto`(타입만), `config/merchants` |
 | `cli/` | 배포, E2E(계층 ④·데모), 단건 지출, 증거 내보내기, 제3자 검증 | `core/usecases`, adapters, config (`src/server/**` 금지 — ADR-0005) |
@@ -264,6 +266,8 @@ event VaultUnpaused(address indexed by, bytes32 evidenceHash);
 - evidenceHash = `keccak256(utf8(canonicalJSON(package)))` — 5절.
 
 #### 사유·플래그 코드 (TS `src/core/domain/reasons.ts`와 1:1)
+
+아래 "UI 라벨 (영어)" 열은 `reasons.ts`의 영어 라벨(API `AuditResult.blockReason`·CLI가 사용 — 불변)이다. 화면은 이 라벨을 쓰지 않고 코드로 사전(`m.reasons`·`m.flags`)에서 선택 언어 문구를 찾는다(D-41, 10절 "UI 언어").
 
 | 코드 | 이름 | UI 라벨 (영어) | 데모 사용 |
 |---|---|---|---|
@@ -677,9 +681,68 @@ type EfficiencyReport = {
 | 대시보드 구성 | `BudgetSummary`(예산·spent·reserved·remaining·수수료율·paused 배지) / `PendingInbox`(Approve·Reject — WalletGate 안) / `ActivityList`(ReasonBadge, TxHashLink) / `PauseButton`(WalletGate 안) / `ReceiptDialog`(선택된 requestId → `/api/receipts/[id]`). 정책 미등록(`policyVersion==0`)이면 "Delegate first" 링크 |
 | 감사 화면 | 입력값을 `?tx=` 쿼리로 반영(공유 가능 URL) → `/api/audit/[tx]`. 형식 오류(`^0x[0-9a-fA-F]{64}$` 불일치)는 요청 전 입력 에러 |
 | 효율 화면 | `/api/efficiency` 1회 조회. 행 0개면 0 행 표 + "No Kiln calls recorded". `provider:"fake"` 데이터면 "Simulated (fake Kiln) data" 경고 배너 |
-| 재사용 컴포넌트 | `AsyncView`(loading/empty/error 렌더 공통), `TxHashLink`(익스플로러 링크), `Krw`(원화 포맷), `ReasonBadge`(코드→라벨, `reasons.ts` 공유) |
+| 재사용 컴포넌트 | `AsyncView`(loading/empty/error 렌더 공통), `TxHashLink`(익스플로러 링크), `Krw`(원화 포맷), `ReasonBadge`(코드→라벨 — 2026-09-29부터 `reasons.ts` 영어 라벨 대신 사전 `m.reasons`·`m.flags`, D-41), `LanguageSwitcher`(아래 "UI 언어") |
+| 문구 언어 | 이 표와 아래 절들에 따옴표로 적힌 화면 문구("Connect wallet" 등)는 **영어(`en`) 사전 값**이다. 한국어 값·전환 규칙은 아래 "UI 언어 (F-17)" 소절 |
 | 출력 안전 | Kiln 텍스트·위임 문장은 React 텍스트 노드로만 렌더 (`dangerouslySetInnerHTML` 금지) |
 | 시각 디자인 | 설계 대상 아님 — 구현 단계 재량 (Tailwind 사용 여부 포함) |
+
+#### UI 언어 (F-17, N-11 — D-40~D-43, ADR-0008. 2026-09-29 신설, 사용자 확인 대상)
+
+근거가 된 사용자 답(인용): OQ #25 "화면 문구 + 오류·사유 문구 (Recommended)" — "사용자가 보는 것은 전부. CLI 출력·증거 JSON은 영어 유지(바꾸면 증거 해시가 달라짐)" / OQ #26 "화면 이동·새로고침 모두 유지 (Recommended)" — "브라우저에 저장. 기본 한국어" / OQ #31 "원문 그대로 (Recommended)" — "AI가 쓴 문장은 증거에 기록된 원문 그대로 표시(감사 화면과 일치). 화면의 고정 문구만 번역" / OQ #27 "T-17(한국어 전환) 먼저 버림". (#27·#31은 호출자 전달 — 이 문서 작성 시점 PRD 표에는 아직 "미정")
+
+| 항목 | 결정 |
+|---|---|
+| 언어·기본값 | `ko`(기본) \| `en`. 상수 `UI_LOCALE = { cookie: "lang", maxAgeS: 31536000, default: "ko" }`를 `src/config/constants.ts`에 둔다(리터럴만 — CodingRules "설정 및 상수") |
+| 선택 보관 | 쿠키 `lang=ko\|en; Path=/; Max-Age=31536000; SameSite=Lax`. HttpOnly 아님(브라우저가 쓴다), `Secure` 없음(`http://127.0.0.1`, D-17). 서버·DB·localStorage에 저장하지 않는다 (ADR-0008) |
+| 순수 규칙 (`src/ui/i18n/locale.ts`, `"use client"` 없음 — 서버 레이아웃·테스트가 import) | `type Locale = "ko" \| "en"`, `LOCALES`, `resolveLocale(raw: string \| null \| undefined): Locale` — 정확히 `"en"`일 때만 `"en"`, 그 외(없음·빈 값·`"EN"`·`"ja"`·변조값) `"ko"`(trim·대소문자 보정 없음). `localeCookie(l: Locale): string` = `` `lang=${l}; Path=/; Max-Age=31536000; SameSite=Lax` ``. `applyLocale(l, doc: { cookie: string; documentElement: { lang: string } }): void` — `doc.cookie = localeCookie(l)`, `doc.documentElement.lang = l` (DOM 대신 가짜 객체로 단위 테스트) |
+| 첫 화면 (SSR) | `app/layout.tsx`를 `async`로: `const locale = resolveLocale((await cookies()).get(UI_LOCALE.cookie)?.value)` → `<html lang={locale}>` + `<LocaleProvider initialLocale={locale}>`(가장 바깥, 그 안에 `WalletProvider`). 서버가 쿠키 언어로 첫 HTML을 그리고 클라이언트가 같은 값으로 hydrate → **깜빡임·hydration 불일치 없음**. 결과로 모든 페이지가 동적 렌더링이 된다(추정 — 확인: T-17 `npm run build` 로그) |
+| 전환 | `LanguageSwitcher`: NavBar 안, 지갑 버튼 왼쪽. `<div role="group" aria-label={m.nav.language}>` 안에 버튼 2개 "한국어"(`lang="ko"`)·"English"(`lang="en"`) — 버튼 이름은 각 언어 자기 이름이라 사전에 두지 않는다. 현재 언어 버튼 `aria-pressed="true"`. 클릭 → `setLocale(l)` = `applyLocale(l, document)` + context state 갱신 → 모든 클라이언트 컴포넌트 재렌더. `router.refresh()`·리로드·서버 호출 없음 |
+| 유지 | 화면 이동: 레이아웃·context가 유지되므로 그대로. 새로고침·브라우저 재시작: 쿠키 → SSR(F-17 ⑤). 쿠키를 막은 브라우저는 새로고침마다 `ko`(감수) |
+| context (`LocaleProvider.tsx`, `"use client"`) | `useI18n(): { locale: Locale; m: Messages; setLocale(l: Locale): void }`. Provider 밖 기본값 = `{ locale: "ko", m: ko, setLocale: no-op }`(컴포넌트 단독 렌더 테스트용) |
+| 문구 리소스 | `en.ts`: `export const en = { … }`(**`as const` 없음**), `export type Messages = typeof en`. `ko.ts`: `export const ko: Messages = { … }` → 누락·잉여 키·함수 시그니처 불일치가 `tsc` 에러. 값은 `string` 또는 `(p: {…}) => string`(복수형·보간 — 보간 엔진 없음). `messages.ts`: `MESSAGES: Record<Locale, Messages>`. 최상위 네임스페이스: `common`·`nav`·`wallet`(연결 버튼·게이트 사유 `GateReason` 5개)·`errors`(오류 코드 전체)·`reasons`(BlockReason 1~8 + `unknown({code})`)·`flags`(비트 1·2)·`activityKinds`(ActivityItem kind 8개)·`judgment`(IntentJudgment status 4개 + `not_judged`·`no_local_evidence`)·`ownerAction`(서명 단계)·`delegate`·`dashboard`·`audit`(이벤트명은 PolicyVault 실제 이름 8개 키)·`efficiency`(흐름 3개)·`energy`(D-43) |
+| 텍스트를 만드는 곳 | **화면 텍스트는 컴포넌트에서만 `useI18n().m`으로 만든다.** 순수 모듈은 코드·키만 반환: `delegateState.ts`의 `FormErrors` 값 = `FormErrorKey`(문자열 문구 대신 키 — `buildPolicySetBody` 시그니처는 불변, 통합 테스트 영향 없음), `delegationFieldError(e)` → 키 \| null, `auditState.ts`의 `hashVerdict(h)` → `{ key: "match" \| "mismatch" \| "no_local"; tone }`. `describeError(e, m)`은 `m`을 필수 인자로 받는다. 예외: `ERROR_MESSAGES`(= `en.errors` 재export)는 클라이언트가 만드는 `ApiError.message`의 진단용 영어 값으로 남는다(tests/integration/walletOwnerAction.test.ts:145 단언 불변) |
+| 탭 제목 | 4개 `page.tsx`의 `metadata.title` 제거. 각 View가 `useDocumentTitle(m.<화면>.title)` → `document.title = \`${title} · Agent Spending Control\``. 레이아웃 `metadata`(브랜드명 "Agent Spending Control" — 가칭 고유명사, PRD OQ #2 보류)는 그대로 |
+| 숫자·날짜 (D-42) | 언어와 무관하게 현재 형식 고정: `formatKrw` = `₩` + `toLocaleString("en-US")`, 일반 숫자 `toLocaleString("en-US")`, 시각 `kstTime` = `YYYY-MM-DD HH:mm:ss KST`, Wh 소수 4자리, 수수료율 `0.00%`. 단위 단어(`/min`·`/day`·"id(s)"·건수)만 사전에서 |
+| 서버 경계 (D-41) | `src/app/api/**`·`src/core/**`·`cli/**`는 `lang` 쿠키를 읽지 않고 `src/ui/i18n`을 import하지 않는다. 브라우저가 API 요청에 쿠키를 함께 보내도 Route Handler는 무시 → 언어가 요청 본문·응답·증거·해시·tx에 닿을 경로가 없다(F-17 ④). API 응답 형태·값은 바꾸지 않는다 |
+| 병합 단위 | 4화면 + NavBar + `LanguageSwitcher` + ReceiptDialog를 한 번에 병합한다. 한 화면만 한국어인 부분 병합 금지. 동결(2026-09-30 09:00, 인용) 전 미완이면 병합하지 않는다 → 기존 영어 UI 유지(OQ #27 답) |
+
+코드 → 화면 문구 매핑 (서버가 주는 값은 그대로, 번역은 화면에서):
+
+| 화면에 뜨는 것 | 서버·모듈이 주는 값 | 화면의 번역 |
+|---|---|---|
+| API 오류 | `error.code` + 영어 `message` | `describeError(e, m)`: 제목 = `m.errors[code]`(없는 코드면 `m.errors.INTERNAL`). 세부 = `message` **원문 그대로**, `<span className="notice-detail" lang="en">`. `message`가 `en.errors[code]` 또는 `m.errors[code]`와 같으면 세부 생략. 없는 코드면 세부 `${code}: ${message}` |
+| 지갑·컨트랙트 오류 | 클라이언트 코드(`SIGNATURE_REJECTED`, `CONTRACT_*` 등) | 위와 같음 |
+| 위임 문장·폼 필드 오류 | `delegationFieldError` 키, `FormErrorKey` | `m.delegate.fieldErrors[key]`(한도 숫자는 `INPUT_LIMITS`·`POLICY_RULES`를 인자로 받는 함수 값) |
+| 차단 사유 | 대시보드 `ActivityItem.reason`(number) / 감사 `item.args.reason` | `m.reasons[code]`, 표에 없으면 `m.reasons.unknown({ code })`. 감사 화면은 `item.blockReason`(영어 라벨 문자열)을 쓰지 않고 `item.event === "SpendBlocked"`일 때 `Number(item.args.reason)` |
+| 대기 플래그 | `flags` 비트마스크 | 비트 1 → 2 순서로 `m.flags[bit]` |
+| 활동 종류·판단 상태·흐름 | `kind`, `judgmentStatus`·`judgmentSummary.status`, `flow` | `m.activityKinds`, `m.judgment`, `m.efficiency.flows`. 표에 없는 값은 원래 값 그대로 |
+| 감사 이벤트 제목 | `item.event` | `m.audit.events[name]` — 키 = `PolicySet`·`SpendExecuted`·`SpendBlocked`·`SpendPending`·`Approved`·`Rejected`·`VaultPaused`·`VaultUnpaused`(chain/contracts/PolicyVault.sol:62~73). 참고: 현재 src/ui/audit/AuditView.tsx:22~23의 키 `Paused`·`Unpaused`는 실제 이벤트명과 달라 중지 tx에서 라벨이 붙지 않는다 — 이 표대로 바꾸면 함께 해소 |
+| 해시 판정 배지 | `hashVerdict` 키 | `m.audit.hashVerdict[key]` |
+| 정책 변환 경고 | `candidate.unrecognizedMerchants` | `m.delegate.unrecognizedMerchant({ name })`. API `warnings`(영어 문장, src/core/domain/policy.ts:97)는 응답에 그대로 두고 화면은 쓰지 않는다 |
+| 에너지 식·경고·가정 단위·출처 | `report.energy.*`(영어, `ENERGY_ASSUMPTIONS`) | `m.energy.*`. `en` 값은 `ENERGY_ASSUMPTIONS`의 문자열을 import해 그대로 쓴다(단일 원본). `ko` 값은 관측성 "표시 문구 규격 — 한국어판 (D-43)". 가정의 `value`는 API 값, `name`(`cards`·`cardPowerW`)은 식별자라 그대로. 사전에 없는 `name`이면 API의 `unit`·`source`를 그대로 |
+| 게이트 사유·서명 단계 | `GateReason`, `OwnerActionState.step` | `m.wallet.gate[reason]`, `m.ownerAction.steps[step]` |
+
+번역하지 않는 것 (원문 그대로 표시):
+
+| 대상 | 근거 |
+|---|---|
+| Kiln 생성 문장 — 정책 `purpose`(확인 폼 입력값), 의도 판단 `reason`(영수증·대기함) | OQ #31 답 "원문 그대로 (Recommended)"(인용) — 증거·감사 화면과 같은 문장 |
+| 사용자 입력 — 위임 문장, 품목 설명 | 증거 원문 |
+| 데이터 값 — 가맹점 표시명(`MERCHANT_REGISTRY.displayName`), 주소, tx·증거 해시, Generation-Id, 금액 숫자, 체인 이름(src/ui/wallet/chains.ts 라벨), `evidenceKind` 코드, 판단 실패 사유 코드(`NO_TOOL_CALL` 등 — `reason`에 들어 있는 값), 이벤트 인자·증거 패키지 JSON, 에너지 가정 `name`, 브랜드명 | 증거·온체인 값 또는 고유명사 (OQ #25 기록의 planner 가정 "데이터 값 비번역" 유지 — 인용) |
+| 서버·지갑 진단 메시지(`ApiError.message`) | 번역된 제목 아래 원문 세부로만 표시(위 매핑 표). zod·RPC·지갑 문장이라 코드로 열거할 수 없다 |
+| API 응답 필드(`warnings`, `AuditResult.blockReason`, `energy.*`), `core/domain/reasons.ts` 영어 라벨, CLI 출력, 증거 JSON | OQ #25 답(인용), F-17 ④ — 서버·CLI·증거는 영어 유지 |
+
+설계가 문자열을 지정한 문구의 `ko` 값 (그 밖의 한국어 문구는 구현 재량 — 사전 키 규칙과 테스트만 지킨다):
+
+| 위치 | `en` (현재 값, 불변) | `ko` |
+|---|---|---|
+| NavBar 링크 4개 | `Delegate` · `Dashboard` · `Audit` · `Efficiency` | `위임` · `대시보드` · `감사` · `효율 리포트` (PRD "화면" 표 이름) |
+| 언어 그룹 aria-label | `Language` | `언어` |
+| 게이트 (10절 "권한·네트워크 가드", src/ui/wallet/WalletGate.tsx:31·41·47, NavBar.tsx:23) | `Connect wallet` / `Switch to ${chain}` / `Connected address is not the owner (view only).` | `지갑 연결` / `${chain}(으)로 전환` / `연결된 주소가 소유자가 아닙니다 (조회만 가능).` — `${chain}`은 체인 이름(번역 안 함) |
+| 서명 거절 (10절 "서명 흐름", `ERROR_MESSAGES.SIGNATURE_REJECTED`) | `Signature rejected` | `서명이 거부되었습니다` |
+| 대시보드 정책 미등록 (DashboardView.tsx:58) | `Delegate first →` | `먼저 위임하세요 →` |
+| 감사 기록 없음 (F-13 ③, AuditView.tsx:142 굵은 부분) | `No record found` | `기록 없음` |
+| 효율 빈 표 (EfficiencyView.tsx:45) · 가짜 데이터 배너 앞부분 (:112) | `No Kiln calls recorded` / `Simulated (fake Kiln) data — …` | `기록된 Kiln 호출 없음` / `시뮬레이션(가짜 Kiln) 데이터 — …` (뒷부분 문장은 구현 재량) |
 
 ### 계층 규칙 (DB·외부 API가 있는 프로젝트만 — 없으면 "해당 없음" 기재)
 
@@ -707,14 +770,29 @@ type EfficiencyReport = {
 | 계층 | 명령 (T-01이 등록·검증) | 대상 승인 기준 |
 |---|---|---|
 | ① 컨트랙트 단위 | `npm run test:contracts` (= `npm --prefix chain test` = `hardhat test`) | F-03 ①②③④, F-04 ①②③, F-05 ①②③, F-06 ①, F-08, F-09(컨트랙트), 사유 코드·이벤트 필드·evidenceHash, reject·setPolicy 제약, rule-cases 패리티 |
-| ② 단위 | `npm run test:unit` (= `vitest run`) | precheck(rule-cases 패리티 포함), quoteFee 경계(99/100/101원), 정책 zod 검증, 만료일→KST 23:59:59 변환, canonicalize+keccak 고정 벡터, `buildChatBody`(F-01 ③: response_format·stop 부재, description 존재, tool_choice "auto", max_tokens ≥ 500), 재시도 정책(429 reset 헤더/지수 백오프/402 무재시도 — 가짜 fetch), replay 판정 |
+| ② 단위 | `npm run test:unit` (= `vitest run`) | precheck(rule-cases 패리티 포함), quoteFee 경계(99/100/101원), 정책 zod 검증, 만료일→KST 23:59:59 변환, canonicalize+keccak 고정 벡터, `buildChatBody`(F-01 ③: response_format·stop 부재, description 존재, tool_choice "auto", max_tokens ≥ 500), 재시도 정책(429 reset 헤더/지수 백오프/402 무재시도 — 가짜 fetch), replay 판정, UI 언어(F-17 ①②③⑤⑥ — 아래 "UI 언어 테스트") |
 | ③ 통합 (Fake Kiln + 실제 노드 + SQLite) | `npm run test:int` (= `vitest run --config vitest.integration.config.ts`) | F-01 ①②, F-04 ④, F-06 ②(Kiln 0회·tx 정확히 1개·SpendBlocked), F-07 ①②③, F-09 사전 검사, F-11 ①②(재해시 = 이벤트 해시), F-14 ③(합계 = SQLite 합), verifyTx 변조 탐지 |
 | ④ E2E (로컬) | `npm run chain:node`(별도 터미널) 후 `npm run e2e:local` | F-15 ①, F-12 ①(로컬 내보내기 → verify) |
 | ④ E2E (Base Sepolia) | `npm run e2e:sepolia` → `npm run evidence:export -- --chain baseSepolia` → `npm run evidence:verify -- --file evidence/base-sepolia/evidence.json` | F-15 ②, F-12 ① — 테스트가 아니라 제출 증거 생성 (실제 Kiln) |
 | 전체 | `npm test` (= contracts → unit → int 순차) | — |
-| 화면 | 자동 테스트 없음. DoD 화면 AC는 Browser pane 실물 확인 | F-01 화면, F-02, F-04 ②, F-05 ①, F-10, F-13, F-14 ①② |
+| 화면 | 화면 전체의 자동 테스트 없음(UI 언어의 순수 규칙·사전·일부 컴포넌트 정적 렌더는 ②). DoD 화면 AC는 Browser pane 실물 확인 | F-01 화면, F-02, F-04 ②, F-05 ①, F-10, F-13, F-14 ①②, F-17 ①②③⑤⑥(두 언어 × 4화면 × 375·1280px) |
 
 T-01 범위: 두 패키지 설치, Hardhat 설정(`paths.artifacts`/`cache` → `build/`), Vitest 2개 설정, 러너당 스모크 테스트 1개(Hardhat 1 + Vitest 1 — 두 러너가 각각 동작함을 보이는 최소 단위), `.env.example` 변수 목록 반영, 위 명령을 CodingRules "검증된 명령어"에 등록. 통합 러너의 노드 자동 기동은 T-03에서 처음 필요하므로 T-01에서는 설정 파일만 만든다.
+
+### UI 언어 테스트 (F-17 — D-40~D-43. 2026-09-29 신설, 사용자 확인 대상)
+
+러너는 기존 ② Vitest(`environment: "node"`, vitest.config.ts:11) 그대로 — jsdom·Testing Library를 추가하지 않는다. 컴포넌트는 `react-dom/server`의 `renderToStaticMarkup`으로 정적 렌더한다(선례 tests/unit/txHashLink.test.ts:2). Red 먼저: 아래 ①~④를 구현 전에 작성해 실패를 확인한다.
+
+| 파일 | 단언 | 대상 AC |
+|---|---|---|
+| `tests/unit/locale.test.ts` | ① `resolveLocale`: `undefined`·`null`·`""` → `ko`, `"en"` → `en`, `"ko"` → `ko`, `"EN"`·`"ja"`·`"en;x"` → `ko` ② `localeCookie("en")` 정확 문자열 ③ `applyLocale("en", fakeDoc)` 후 `fakeDoc.cookie`·`fakeDoc.documentElement.lang === "en"`, 다시 `"ko"`로 되돌림 | F-17 ①②⑤ (쿠키 규칙), 기본 `ko` |
+| `tests/unit/i18nMessages.test.ts` | ④ **누락 키 검출**: `ko`와 `en`의 깊은 키 경로 집합이 같고 같은 경로의 값 타입(string/function)이 같다(`tsc`와 별도 런타임 검사) ⑤ 빈 문자열 없음, 함수 값은 표본 인자로 호출해 빈 문자열 아님 ⑥ **미번역 검출**: 문자열 leaf(함수는 표본 호출 결과)가 `ko === en`이면 실패 — 예외는 테스트 파일의 허용 목록(고유명사·단위 등, 경로 명시)만 ⑦ **코드 커버리지**: `errors` 키 ⊇ tests/unit/errorMessages.test.ts의 API·CLIENT·CONTRACT 코드 목록, `reasons` ⊇ BlockReason 1~8, `flags` ⊇ PendingFlag 값, `activityKinds` ⊇ ActivityItem kind 8개, `judgment` ⊇ status 6개, `efficiency.flows` ⊇ 3개, `audit.events` ⊇ PolicyVault 이벤트 8개, `wallet.gate` ⊇ GateReason 5개(src/ui/wallet/gate.ts:8) ⑧ **D-43 정확 문자열**: `ko.energy.*`가 관측성 "한국어판" 표와 문자 단위 일치, `en.energy.formula`·`disclaimer`·`sources`가 `ENERGY_ASSUMPTIONS` 값과 일치 ⑨ 두 사전의 `energy`·`efficiency` 문자열 전체에 `/upper bound\|≤\|상한/i` 불일치 | F-17 ③⑥, 누락 키 |
+| `tests/unit/i18nRender.test.ts` | ⑩ `LocaleProvider initialLocale="ko"`로 감싼 `ReasonBadge`(blocked 6, pending flags 3)·`ErrorNotice`(`KILN_RATE_LIMITED`)·`LanguageSwitcher`를 정적 렌더 → 한국어 사전 값 포함, `LanguageSwitcher`는 `aria-pressed="true"`가 한국어 버튼 ⑪ 같은 컴포넌트 `initialLocale="en"` → 영어 값 ⑫ `ErrorNotice`에 서버 `message`가 있으면 원문 그대로 `lang="en"` 세부로 렌더, `message`가 `en.errors[code]`와 같으면 세부 없음 | F-17 ②⑥ |
+| `tests/unit/i18nBoundary.test.ts` | ⑬ `src/app/api/**`·`src/core/**`·`cli/**`의 `.ts` 파일 본문에 `ui/i18n` import와 `cookies(`가 없다(파일 읽기 — 정적 검사) | F-17 ④ 경로 차단 |
+
+- 기존 테스트 갱신(예상 — 영어 문구를 키·사전으로 옮기면서 깨지는 단언): tests/unit/errorMessages.test.ts(`describeError` 인자 `m` 추가, :39 "UI language is English" 주석·단언은 `en` 사전 한정으로), tests/unit/delegateState.test.ts:142·179~183(문구 → 키), tests/unit/auditState.test.ts:23~25(`label` → `key`), tests/unit/txHashLink.test.ts:24(`title` 문구 — `TxHashLink`를 번역하면 기본 `ko`로 바뀜). 갱신 내역은 implementer가 보고한다(Tasks T-17 검증 기준 원문 "기존 문구 단언 테스트가 한국어 기본으로 깨지면 갱신 내역 보고", 인용).
+- **바뀌면 안 되는 것 (F-17 ④)**: `tests/integration/**`는 수정 없이 통과해야 한다 — 특히 auditEfficiency.test.ts:111(`blockReason: "Merchant not allowed"`)·:145(`disclaimer` `/not measured/i`), walletOwnerAction.test.ts:145(`message: "Signature rejected"`), 증거 해시·요청 본문 단언. tests/unit/reasons.test.ts·efficiency.test.ts·reportEfficiency.test.ts(코어·CLI 영어)도 수정 없음.
+- 브라우저 실물 확인(자동화 대상 아님): 쿠키 없는 새 프로필로 4화면 → 한국어 + `document.documentElement.lang === "ko"`, 영어 선택 → 즉시 영어 + `en`, 다른 화면 이동·새로고침 후에도 영어, 첫 로드에 한국어→영어 깜빡임 없음(새로고침 직후 화면), 375·1280px에서 한국어 문구 줄바꿈으로 표·버튼이 깨지지 않음, 에너지 절 두 언어 문구가 D-38·D-43과 일치.
 
 ### CI (D-37, ADR-0006 — D-21의 "CI 미사용"을 대체. 승인 2026-09-29)
 
@@ -835,7 +913,7 @@ env 모듈 분리 (ADR-0005 — `server-only` 패키지는 `react-server` 조건
 | 항목 | 결정 |
 |---|---|
 | 예외를 잡는 위치 | 도메인은 예상된 실패를 **결과값**(`{ok:false, code}`, `PrecheckResult`, `IntentJudgment.status`)으로 반환하고 던지지 않는다. 체인·DB 어댑터는 외부 오류를 `AppError{code, message, retryable, cause}`(`src/core/errors.ts`)로 감싸 던진다. **Kiln 어댑터는 예외다 — HTTP·네트워크 실패를 던지지 않고** 재시도 소진 후 `KilnCallResult.outcome = {kind:"http_error", status, code: KilnErrorCode\|null}`로 반환한다(4절, D-32). 유스케이스가 이 반환값을 매핑한다: `processSpendRequest`는 `interpretIntentOutcome`으로 `judgment.status="error"`(reason = 코드) → `agentReviewRequest=true` 대기 경로(D-10), `parsePolicy`는 `{ok:false, code}`. 최종 포착은 Route Handler(요청당 try/catch 1개)와 CLI main(종료 코드 1). 유스케이스는 AppError를 잡지 않고 통과시킨다 — 예외: `processSpendRequest`는 `writer.spend` 실패 시 `spend_requests.outcome="failed"`를 기록한 뒤 다시 던진다 |
-| 실패가 사용자에게 드러나는 방식 | Route Handler가 `AppError.code` → HTTP 상태: `VALIDATION_FAILED`/`SCHEMA_INVALID`/`NO_TOOL_CALL`/`INVALID_ARGS`/`UNKNOWN_MERCHANT`/`EXPIRY_REQUIRED`→400·422, `NOT_OWNER`→403, `NOT_FOUND`→404, `KILN_RATE_LIMITED`→429, `KILN_CREDIT_EXHAUSTED`→402, `KILN_UNAVAILABLE`/`KILN_AUTH`/`KILN_BAD_REQUEST`/`CHAIN_RPC_ERROR`→502, 그 외→500(`INTERNAL`, 메시지 일반화). `POLICY_EVENT_NOT_FOUND`/`POLICY_EVIDENCE_NOT_FOUND`는 `processSpendRequest`(HTTP 경로 없음) 전용 — CLI 종료 코드 1 + 코드 출력. UI는 코드별 영어 문구 표(`src/ui/errorMessages.ts`)로 표시. 지갑 오류(4001 거절, 잘못된 체인, 컨트랙트 커스텀 에러)는 클라이언트에서 같은 표로 변환 |
+| 실패가 사용자에게 드러나는 방식 | Route Handler가 `AppError.code` → HTTP 상태: `VALIDATION_FAILED`/`SCHEMA_INVALID`/`NO_TOOL_CALL`/`INVALID_ARGS`/`UNKNOWN_MERCHANT`/`EXPIRY_REQUIRED`→400·422, `NOT_OWNER`→403, `NOT_FOUND`→404, `KILN_RATE_LIMITED`→429, `KILN_CREDIT_EXHAUSTED`→402, `KILN_UNAVAILABLE`/`KILN_AUTH`/`KILN_BAD_REQUEST`/`CHAIN_RPC_ERROR`→502, 그 외→500(`INTERNAL`, 메시지 일반화). `POLICY_EVENT_NOT_FOUND`/`POLICY_EVIDENCE_NOT_FOUND`는 `processSpendRequest`(HTTP 경로 없음) 전용 — CLI 종료 코드 1 + 코드 출력. UI는 코드별 영어 문구 표(`src/ui/errorMessages.ts`)로 표시. 지갑 오류(4001 거절, 잘못된 체인, 컨트랙트 커스텀 에러)는 클라이언트에서 같은 표로 변환. **2026-09-29 (F-17, D-41)**: 표시 문구는 선택 언어 사전 `m.errors[code]`(`describeError(e, m)`), 서버·지갑 `message`는 그 아래 원문 세부. `ERROR_MESSAGES`는 `en.errors`로 남아 클라이언트 `ApiError.message` 진단값에 쓰인다. 서버의 코드·HTTP 매핑은 불변 — 10절 "UI 언어" |
 | 경계 간 전파 | 컨트랙트 → TS: 정책 위반은 revert가 아니라 이벤트(ADR-0002)이므로 **정상 결과**로 전파. revert(권한·중복 등)만 `CHAIN_TX_REVERTED`. Kiln → 유스케이스: `KilnCallResult.outcome`(throw 안 함, 재시도 소진 후 `http_error`). API → UI: `{ok:false, error:{code,message}}` 한 형태. 스택 트레이스·원본 에러 메시지·RPC URL은 응답에 싣지 않는다 |
 
 ## 관측성
@@ -883,6 +961,25 @@ env 모듈 분리 (ADR-0005 — `server-only` 패키지는 `react-server` 조건
 - 기존 단언 `/not measured/i`·`formula`의 `3600` 포함(`tests/unit/efficiency.test.ts:129~130`, `tests/unit/reportEfficiency.test.ts:16`, `tests/integration/auditEfficiency.test.ts:145`, 인용)은 새 문구에서도 성립한다. 새 단언 권장: `formula`·CLI 출력에 `2-card scenario` 포함, `disclaimer`에 `card count cannot be confirmed` 포함, CLI 출력 전체에 `/upper bound/i` 불일치.
 - 증거 패키지·`evidence/` 파일에는 이 문자열이 들어가지 않는다(`ENERGY_ASSUMPTIONS`는 `core/domain/efficiency.ts`에서만 읽힘, `evidence/`에 `upper bound`·`energyWh` 0건 — 2026-09-29 grep) → 해시 재계산·재배포 영향 없음.
 
+#### 표시 문구 규격 — 한국어판 (D-43, F-17 ③. 2026-09-29 신설, 사용자 확인 대상)
+
+화면(효율 리포트)에서만 쓰인다 — CLI·API·`constants.ts`의 영어 문자열은 위 D-38 표 그대로다(D-41). 아래 `ko` 열이 사전 `ko.energy`/`ko.efficiency`의 정확한 문자열이다(따옴표 안, 앞뒤 공백 없음, `${…}`는 함수 인자). `en` 열은 현재 화면 값이며 식·경고·출처는 `ENERGY_ASSUMPTIONS`를 import해 쓴다. 두 언어 모두 `upper bound`·`≤`·`상한`을 쓰지 않는다. 화면은 `report.energy.formula`·`disclaimer`·가정 `unit`·`source` 대신 이 사전 값을 렌더한다(가정 `value`·`name`은 API 값 그대로).
+
+| 사전 키 (제안 이름) | `en` | `ko` |
+|---|---|---|
+| `efficiency.table.energy` (표 헤더, 현재 EfficiencyView.tsx:37) | `Energy est., 2-card scenario (Wh)` | `에너지 추정, 2장 시나리오 (Wh)` |
+| `efficiency.savings({ count, tokens, wh })` (절감 문장, 현재 :122~124) | `${count} request${count === 1 ? " was" : "s were"} blocked by code rules with 0 Kiln calls. At the intent-judgment average that is about ${tokens} tokens and ${wh} Wh not spent (2-card scenario estimate).` | `코드 규칙으로 ${count}건이 차단되어 Kiln 호출이 0회였습니다. 의도 판단 평균으로 환산하면 약 ${tokens} 토큰과 ${wh} Wh를 쓰지 않았습니다(2장 시나리오 추정).` |
+| `energy.title` (에너지 절 제목, 현재 :128) | `Energy estimate (2-card scenario) — not measured` | `에너지 추정 (2장 시나리오) — 측정값 아님` |
+| `energy.formula` (현재 :131 — API 값) | `ENERGY_ASSUMPTIONS.formula` | `E_Wh = latency_s × cards × P_card_W ÷ 3600 (2장 시나리오 추정: 카드 2장의 전력 전부를 이 요청에 귀속하고 배치 처리는 무시)` |
+| `energy.disclaimer` (경고, 현재 :129 — API 값) | `ENERGY_ASSUMPTIONS.disclaimer` | `추정값(가정)이며 측정값이 아닙니다. 2장 시나리오: Kiln은 qwen3-32b를 몇 장의 카드로 서비스하는지 공개하지 않아 카드 수를 확정할 수 없으며, 카드가 더 많으면 값이 그에 비례해 커집니다. 지연 시간은 이 클라이언트가 측정한 값이고, 전력과 카드 수는 가정입니다.` |
+| `energy.units.cards` | `ENERGY_ASSUMPTIONS.cards.unit` (`cards`) | `장` |
+| `energy.units.cardPowerW` | `ENERGY_ASSUMPTIONS.cardPowerW.unit` (`W`) | `W` (미번역 검출 허용 목록 대상) |
+| `energy.sources.cards` | `ENERGY_ASSUMPTIONS.cards.source` | `qwen3-32b BF16 가중치 약 64 GB > FuriosaAI RNGD 카드 1장의 HBM 48 GB → 최소 2장 (가정 — Kiln의 서빙 구성은 공개되지 않음)` |
+| `energy.sources.cardPowerW` | `ENERGY_ASSUMPTIONS.cardPowerW.source` | `FuriosaAI RNGD 공개 TDP 180 W (요청 전체 동안 최대 전력을 쓴다고 가정)` |
+
+- F-17 ③ 조건 대응(한국어): "2장 시나리오 추정" = 제목·헤더·식·절감 문장 / "측정값 아님" = 제목·경고 / "Kiln 실제 카드 수 비공개로 확정 불가" = 경고 "공개하지 않아 카드 수를 확정할 수 없으며" / "상한 표기 없음" = 테스트 ⑨.
+- 숫자 부분(`${count}`·`${tokens}`·`${wh}`)의 형식은 D-42 그대로(`toLocaleString("en-US")`, Wh 소수 4자리).
+
 ## 주요 결정
 
 결정 기록은 [DECISIONS.md](DECISIONS.md)와 [adr/](adr/)에 있다. 이 문서에는 결과만 반영한다.
@@ -896,3 +993,4 @@ env 모듈 분리 (ADR-0005 — `server-only` 패키지는 `react-server` 조건
 | [ADR-0005](adr/0005-env-module-split-and-cli-key-file.md) | env 모듈 분리(서버/CLI)와 개인키 파일 `.env.cli` |
 | [ADR-0006](adr/0006-minimal-github-actions-ci.md) | 최소 GitHub Actions CI — push·PR마다 `npm test` (D-21 "CI 미사용" 대체) |
 | [ADR-0007](adr/0007-thinking-mode-default-no-think.md) | `KILN_THINKING_MODE` 기본값 `no_think` (D-18 "기본 `default`" 대체) — 승인, T-14 게이트 통과, T-15 적용 완료 |
+| [ADR-0008](adr/0008-ui-locale-cookie-and-typed-dictionary.md) | UI 언어 전환 — 자체 타입 사전 + React context, 선택은 쿠키 `lang`·루트 레이아웃 SSR 읽기 (F-17, D-40) — 제안 |
