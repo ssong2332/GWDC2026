@@ -17,6 +17,17 @@ describe("report:efficiency CLI", () => {
         expect(text).toContain("3600");
     });
 
+    it("energy labels (D-38) → 2-card scenario header and savings line, card count not confirmable, no upper bound", () => {
+        const text = formatEfficiencyReport(reportFromFile(path.resolve("evidence/base-sepolia/evidence.json")));
+        const lines = text.split("\n");
+        expect(lines.find((l) => l.startsWith("| flow"))).toMatch(/\| energy est\., 2-card scenario \(Wh\) \|$/);
+        expect(lines.find((l) => l.startsWith("Rule-blocked requests:"))).toMatch(/Wh \(2-card scenario\)\.$/);
+        expect(lines.find((l) => l.startsWith("Energy:"))).toContain("2-card scenario estimate");
+        expect(text).toContain("card count cannot be confirmed");
+        expect(text).not.toMatch(/upper bound/i);
+        expect(text).not.toContain("≤");
+    });
+
     it("missing or invalid file → throws with the reason", () => {
         expect(() => reportFromFile(path.resolve("evidence/does-not-exist.json"))).toThrow();
         expect(() => reportFromFile(path.resolve("package.json"))).toThrow(/evidence file/);

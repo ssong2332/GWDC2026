@@ -97,10 +97,10 @@ export const DEFAULT_VERIFY_RPC: Record<number, string> = {
  */
 export const CHAIN_READ_RETRY = { maxAttempts: 6, backoffBaseMs: 250, backoffCapMs: 2000, totalWaitCapMs: 8000 } as const;
 
-/** F-14 ② energy estimate (D-20, OQ #9 accepted): an upper bound, not a measurement — Kiln exposes no energy API. */
+/** F-14 ② energy estimate (D-20, label per D-38): a 2-card scenario estimate, not a measurement — Kiln exposes no energy API and does not publish its card count. */
 export const ENERGY_ASSUMPTIONS = {
     cards: { value: 2, unit: "cards", source: "qwen3-32b BF16 weights ≈ 64 GB > 48 GB HBM of one FuriosaAI RNGD card → at least 2 cards (assumed; Kiln's serving setup is not published)" },
     cardPowerW: { value: 180, unit: "W", source: "FuriosaAI RNGD published TDP 180 W (assumed full draw for the whole request)" },
-    formula: "E_Wh = latency_s × cards × P_card_W ÷ 3600 (upper bound: the whole card power is attributed to this request, batching ignored)",
-    disclaimer: "Estimate (assumed), not measured. Latency is measured by this client; power and card count are assumptions.",
+    formula: "E_Wh = latency_s × cards × P_card_W ÷ 3600 (2-card scenario estimate: the full power of 2 cards is attributed to this request, batching ignored)",
+    disclaimer: "Estimate (assumed), not measured. 2-card scenario: Kiln does not publish how many cards serve qwen3-32b, so the card count cannot be confirmed; with more cards the value grows proportionally. Latency is measured by this client; power and card count are assumptions.",
 } as const;

@@ -19,7 +19,7 @@ export function reportFromFile(filePath: string): EfficiencyReport {
 const wh = (n: number) => n.toFixed(4);
 
 export function formatEfficiencyReport(r: EfficiencyReport): string {
-    const head = "| flow | Kiln calls | requests | prompt | completion | reasoning | total tokens | cost (USD) | energy upper bound (Wh) |";
+    const head = "| flow | Kiln calls | requests | prompt | completion | reasoning | total tokens | cost (USD) | energy est., 2-card scenario (Wh) |";
     const rows = r.rows.map(
         (x) =>
             `| ${x.flow} | ${x.kilnCalls} | ${x.requests} | ${x.promptTokens} | ${x.completionTokens} | ${x.reasoningTokens ?? "-"} | ${x.totalTokens} | ${x.costUsd} | ${wh(x.energyWhUpper)} |`,
@@ -33,7 +33,7 @@ export function formatEfficiencyReport(r: EfficiencyReport): string {
         ...rows,
         `| total | ${t.kilnCalls} | - | ${t.promptTokens} | ${t.completionTokens} | ${t.reasoningTokens ?? "-"} | ${t.totalTokens} | ${t.costUsd} | ${wh(t.energyWhUpper)} |`,
         "",
-        `Rule-blocked requests: ${r.savings.ruleBlockedRequests} (0 Kiln calls). Avoided (estimate from the intent_judge average): ~${r.savings.avoidedTokensEstimate} tokens, ~${wh(r.savings.avoidedEnergyWhUpper)} Wh.`,
+        `Rule-blocked requests: ${r.savings.ruleBlockedRequests} (0 Kiln calls). Avoided (estimate from the intent_judge average): ~${r.savings.avoidedTokensEstimate} tokens, ~${wh(r.savings.avoidedEnergyWhUpper)} Wh (2-card scenario).`,
         `Energy: ${r.energy.formula}`,
         ...r.energy.assumptions.map((a) => `  - ${a.name} = ${a.value} ${a.unit} — ${a.source}`),
         r.energy.disclaimer,

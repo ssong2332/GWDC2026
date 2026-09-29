@@ -12,7 +12,7 @@ import {
 } from "@/core/domain/efficiency";
 import { parseEvidenceExport } from "@/core/usecases/verifyTx";
 
-// F-14: per-flow Kiln usage, rule-block rows at 0 tokens, energy upper bound (D-20: latency_s × 2 cards × 180 W ÷ 3600).
+// F-14: per-flow Kiln usage, rule-block rows at 0 tokens, energy 2-card scenario estimate (D-20/D-38: latency_s × 2 cards × 180 W ÷ 3600).
 
 let seq = 0;
 function call(over: Partial<UsageCall> = {}): UsageCall {
@@ -128,6 +128,10 @@ describe("composeEfficiencyReport (F-14 ①②③)", () => {
         expect(r.savings.avoidedEnergyWhUpper).toBeCloseTo(1.35, 10); // 3 × (0.9 / 2)
         expect(r.energy.formula).toContain("3600");
         expect(r.energy.disclaimer).toMatch(/not measured/i);
+        // D-38 label: 2-card scenario estimate, card count not confirmable, never called an upper bound.
+        expect(r.energy.formula).toContain("2-card scenario estimate");
+        expect(r.energy.disclaimer).toContain("card count cannot be confirmed");
+        expect(`${r.energy.formula} ${r.energy.disclaimer}`).not.toMatch(/upper bound|≤|상한/i);
         expect(r.energy.assumptions.map((a) => [a.name, a.value, a.unit])).toEqual([
             ["cards", 2, "cards"],
             ["cardPowerW", 180, "W"],

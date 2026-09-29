@@ -57,7 +57,7 @@ export type EfficiencyReport = {
 const FLOW_ORDER: KilnFlow[] = ["policy_parse", "intent_judge"];
 const REQUEST_FLOWS = new Set(["rule_block", "intent_judge"]);
 
-/** E_Wh = latency_s × cards × P_card_W ÷ 3600 — upper bound, not a measurement. */
+/** E_Wh = latency_s × cards × P_card_W ÷ 3600 — 2-card scenario estimate, not a measurement. The name "energyWhUpper" is kept for interface stability (D-38); the value is not an upper bound. */
 export function energyWhUpper(latencyMs: number): number {
     if (!Number.isFinite(latencyMs) || latencyMs < 0) throw new RangeError(`latency must be a non-negative number, got ${latencyMs}`);
     return ((latencyMs / 1000) * ENERGY_ASSUMPTIONS.cards.value * ENERGY_ASSUMPTIONS.cardPowerW.value) / 3600;

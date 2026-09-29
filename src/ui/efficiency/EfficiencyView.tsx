@@ -4,7 +4,7 @@ import type { EfficiencyResponse } from "@/app/api/_lib/dto";
 import { AsyncView } from "../components/AsyncView";
 import { useApi } from "../hooks/useApi";
 
-// ④ Efficiency (F-14): per-flow Kiln usage from SQLite, rule-blocked requests at 0 tokens, and the energy upper bound
+// ④ Efficiency (F-14): per-flow Kiln usage from SQLite, rule-blocked requests at 0 tokens, and the energy estimate (2-card scenario, D-38)
 // with its formula and assumptions (D-20 — an estimate, not a measurement).
 
 type Report = EfficiencyResponse["report"];
@@ -34,7 +34,7 @@ function UsageTable({ report }: { report: Report }) {
                         <th scope="col" className="num">Reasoning</th>
                         <th scope="col" className="num">Total tokens</th>
                         <th scope="col" className="num">Cost (USD)</th>
-                        <th scope="col" className="num">Energy ≤ (Wh)</th>
+                        <th scope="col" className="num">Energy est., 2-card scenario (Wh)</th>
                         <th scope="col">Generation-Id</th>
                     </tr>
                 </thead>
@@ -120,12 +120,12 @@ export function EfficiencyView() {
                             <h2>Avoided inference</h2>
                             <p>
                                 {report.savings.ruleBlockedRequests} request{report.savings.ruleBlockedRequests === 1 ? " was" : "s were"} blocked by code rules
-                                with 0 Kiln calls. At the intent-judgment average that is about {n(report.savings.avoidedTokensEstimate)} tokens and ≤{" "}
-                                {wh(report.savings.avoidedEnergyWhUpper)} Wh not spent (estimate).
+                                with 0 Kiln calls. At the intent-judgment average that is about {n(report.savings.avoidedTokensEstimate)} tokens and{" "}
+                                {wh(report.savings.avoidedEnergyWhUpper)} Wh not spent (2-card scenario estimate).
                             </p>
                         </section>
                         <section className="card" aria-label="Energy estimate">
-                            <h2>Energy estimate — not measured</h2>
+                            <h2>Energy estimate (2-card scenario) — not measured</h2>
                             <p className="notice notice-warn">{report.energy.disclaimer}</p>
                             <p>
                                 <code>{report.energy.formula}</code>
