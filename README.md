@@ -1,101 +1,26 @@
-# Allowance (곳간지기) — Agent Spending Control & Evidence Layer
+# 곳간지기 (Allowance) — Agent Spending Control & Evidence Layer
 
-> 프로젝트 이름은 **곳간지기**(영문 **Allowance**)로 확정됐다 (PRD Open Question #2 해결, `docs/PRD.md`). "Agent Spending Control & Evidence Layer"는 기술명(부제)이다. 이 리포는 [start_coding](https://github.com/ssong2332/start_coding) 템플릿에서 초기화되었고, GWDC 2026 KOREA 해커톤 챌린지 B 출품작이다.
-> This repo was bootstrapped from the [start_coding](https://github.com/ssong2332/start_coding) template and is an entry for the GWDC 2026 KOREA hackathon, Challenge B.
+GWDC 2026 KOREA 해커톤 챌린지 B 출품작. 동아리·학생회 행사비를 AI 에이전트가 대신 쓸 때, 한도는 코드와 온체인 `PolicyVault`가 강제하고 모든 결제·차단·승인·중지를 제3자가 검증할 수 있게 남긴다.
 
 ## Declared function (one sentence) / 선언한 기능 (한 문장)
-
-> GWDC 2026 챌린지 B 요구사항: "Declare in one sentence, in your README, the function you built." (FuriosaAI × Bricksum Challenge B brief). 아래 한 문장을 기준으로 심사한다 — `docs/PRD.md` "한 줄 정의" 원문 그대로.
 
 **EN:** When an AI agent spends event/club budget on a user's behalf, spending limits are enforced by code and the on-chain `PolicyVault` — never by the AI — and every payment, block, approval, and pause is recorded so a third party can reconstruct it from the record alone.
 
 **KR:** AI 에이전트가 동아리·학생회 행사비를 대신 쓸 때, 한도 판정은 AI가 아니라 코드와 온체인 `PolicyVault`가 하고, 모든 결제·차단·승인·중지를 제3자가 기록만으로 재구성할 수 있게 남기는 지출 통제·증거 계층.
 
-## For judges / 심사위원 가이드
-
-> 이 절은 입구다. 자세한 내용은 각 링크의 절을 본다. / This section is an entry point — follow the links for details.
-
-세 경로 중 시간에 맞는 것을 고르면 된다. / Pick the path that fits your time.
-
-| 경로 / Path | 시간 / Time | 준비물 / Needs | 하는 일 / What you do |
-|---|---|---|---|
-| A | 5분 / 5 min | 브라우저만 / browser only (설치 없음 / no install) | Base Sepolia에 남은 기록 확인 / read the on-chain record |
-| B | 10분 / 10 min | Node.js 22, npm — `.env`·API 키 불필요 / no `.env`, no API key. Base Sepolia 공개 RPC 읽기 전용 / read-only public RPC | 제3자 검증·효율 표를 직접 실행 / run the third-party verification and the efficiency table yourself |
-| C | 화면 4개 / 4 screens | Node.js 22, npm — API 키 불필요 / no API key (가짜 Kiln·로컬 체인 / fake Kiln, local chain) | 로컬에서 화면 4개를 직접 사용 / use the 4 screens locally |
-
-### 경로 A — 5분, 설치 없이 기록만 확인 / Path A — 5 min, read the record (no install)
-
-- ["Base Sepolia evidence" 절](#base-sepolia-evidence--base-sepolia-실행-증거)의 표에서 사건별 BaseScan 링크를 연다: 정상 결제(step 2), 비허용 가맹점 차단(step 3), 승인 대기→승인(step 4), AI 목적 불일치 대기(step 5), 예산 초과 차단(step 6), 호출 폭주 차단(step 7), 정지 중 차단(step 8).
-- 같은 기록을 코드로 대조하는 방법은 ["Verify it yourself (third party)" 절](#verify-it-yourself-third-party--제3자-직접-검증)에 있다.
-- EN: open the per-event BaseScan links in the [Base Sepolia evidence](#base-sepolia-evidence--base-sepolia-실행-증거) table (normal payment, blocked merchant, pending→approved, AI purpose mismatch → pending, over-budget block, rate-limit block, blocked while paused). How to re-check the same record by code: [Verify it yourself](#verify-it-yourself-third-party--제3자-직접-검증).
-
-### 경로 B — 10분, 제3자 검증을 직접 실행 / Path B — 10 min, run the third-party verification yourself
-
-`.env`·API 키가 필요 없다. Base Sepolia 공개 RPC를 읽기 전용으로만 쓴다. / No `.env` or API key; the Base Sepolia public RPC is used read-only.
-
-```bash
-# 1. 설치 / install
-npm ci
-
-# 2. 증거 JSON의 해시를 온체인 이벤트와 대조 (mismatches 0이면 종료 코드 0)
-npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
-
-# 3. 흐름별 토큰·cost·에너지 추정 표
-npm run report:efficiency -- --file evidence/base-sepolia/evidence.json
-```
-
-- 2번의 기대 결과와 3번 표의 해석은 ["Verify it yourself"](#verify-it-yourself-third-party--제3자-직접-검증)·["Efficiency (per flow)"](#efficiency-per-flow--흐름별-효율) 절에 있다. 에너지 수치는 추정(2장 시나리오)이지 측정값이 아니다.
-- EN: step 2 exits 0 when `mismatches` is 0; step 3 prints the per-flow table (energy is an estimate under a 2-card scenario, not a measurement).
-
-### 경로 C — 로컬에서 화면 4개 직접 써 보기 / Path C — use the 4 screens locally
-
-API 키가 필요 없다: 가짜 Kiln(`KILN_MODE=fake`)과 로컬 체인을 쓴다. / No API key: fake Kiln and a local chain.
-
-- 준비: `npm ci`와 `npm --prefix chain ci`(체인 패키지는 별도 설치 — ["Required environment"](#required-environment--필요-환경) 절). 이어서 ["Local demo / 로컬 데모 방법"](#local-demo--로컬-데모-방법) 절의 1·2·4번 명령(로컬 노드 → 배포 → 개발 서버)을 그대로 실행하고 `http://127.0.0.1:3000`을 연다. 3번(`npm run e2e:local`)은 화면과 별개인 E2E 8단계 검증이다.
-- 화면별로 볼 것 (["Human side"](#human-side--사람이-보는-화면-4개) 절 기준):
-
-| 화면 / Screen | 경로 / Path | 볼 것 / What to look at |
-|---|---|---|
-| ① 위임 / Delegate | `/delegate` | 자연어 위임 문장 → 정책 후보(예산·허용 가맹점·건당 승인 임계·기한) 확인·수정 / natural-language delegation → policy candidate |
-| ② 대시보드 / Dashboard | `/dashboard` | 잔여 예산·지출 목록, 승인 대기함(승인/거절), 정지 버튼, 영수증 / remaining budget, spend list, pending inbox, pause button, receipts |
-| ③ 감사 / Audit | `/audit` | tx hash 입력 → 증거 재구성과 "해시 일치" 표시 / enter a tx hash → reconstructed evidence and hash-match indicator |
-| ④ 효율 / Efficiency | `/efficiency` | 흐름별 토큰·cost·호출 수, 규칙 차단으로 아낀 Kiln 호출, 에너지 추정 / per-flow tokens, cost, calls, Kiln calls avoided by rule blocks, energy estimate |
-
-- 상단 메뉴의 "한국어/English" 버튼으로 화면 언어를 바꾼다(기본 한국어 — ["언어 선택"](#언어-선택--ui-language-f-17) 소절). / Switch the UI language with the "한국어/English" button in the top menu (Korean by default).
-- 한계: 위임 확정·승인·정지처럼 소유자 지갑 서명이 필요한 단계는 브라우저 지갑 확장이 있어야 하고, 실제 MetaMask 등 확장에서의 서명 흐름은 자동 검증되지 않았다 (["Known limitations"](#known-limitations--알려진-한계) 절, T-05 구현 근거). / Steps that need the owner's wallet signature (confirm delegation, approve, pause) need a browser wallet extension; signing in a real extension (e.g. MetaMask) was not automatically verified.
-
-### 확인하면 되는 것 / What to check
-
-1. 한도 판정은 AI가 아니라 코드와 온체인 `PolicyVault`가 한다 — 판정 순서는 ["Boundary & where enforced"](#boundary--where-enforced--경계와-강제-지점) 표. / Limits are enforced by code and the on-chain `PolicyVault`, not by the AI.
-2. AI(Kiln)는 경계를 넓힐 수 없다 — 목적 불일치·판단 실패 시 결과는 승인 대기로만 엄격화된다(D-10 fail-closed). 경로 A의 step 5가 그 사례다. / The AI cannot widen the boundary; a mismatch only tightens the result to "pending approval" (path A, step 5).
-3. 차단·승인 대기·정지도 온체인 이벤트(`SpendBlocked`·`SpendPending`·`VaultPaused`)로 남는다 — 경로 A의 step 3·5·6·7·8. / Blocks, pending approvals, and pauses are also recorded as on-chain events (path A, steps 3, 5, 6, 7, 8).
-4. 증거 JSON의 재계산 해시가 온체인 해시와 일치한다 — 경로 B 2번이 `mismatches: 0`으로 끝나는지 본다. / The recomputed hash of the evidence JSON matches the on-chain hash — check that path B step 2 ends with `mismatches: 0`.
-
-실제 Kiln(`qwen3-32b`) 호출은 `KILN_MODE=real`과 `KILN_API_KEY`가 필요하다 — 절차는 ["Base Sepolia 실행 절차"](#base-sepolia-실행-절차-사용자용-재현-방법) 절. 위 세 경로는 이 키 없이 된다. / Calling the real Kiln (`qwen3-32b`) needs `KILN_MODE=real` and a `KILN_API_KEY`; the three paths above do not.
-
-## Who / problem / what the AI does vs. what the code enforces / 사용자·문제·AI와 코드의 경계
+## 사용자·문제·AI와 코드의 경계
 
 | 구분 | 내용 |
 |---|---|
-| Who / 사용자 | 예산을 맡기는 사람(동아리 회장 — 소유자 지갑)과 검사하는 사람(감사·회원 — 제3자). 상세는 아래 "Users / 사용자" 표, 근거는 `docs/PRD.md` "사용자" 절 |
-| Problem / 문제 | 동아리·학생회 행사비를 AI 에이전트가 대신 지출할 때, 얼마까지·어디에 쓸 수 있는지를 AI 판단에 맡기면 위험하다 — 한도는 AI가 아니라 코드가 정해야 제3자가 신뢰할 수 있다 (`docs/PRD.md` "배경/문제") |
-| AI가 하는 일 (Kiln `qwen3-32b`) | ① 위임 문장(자연어) → 정책 후보(총예산·허용 가맹점·건당 승인 임계·기한) 변환 (F-01). ② 개별 구매가 위임 목적에 맞는지 판단만 한다(F-07) — 예산·한도·가맹점 여부는 판단하지 않는다 |
-| 코드·컨트랙트가 강제하는 일 | 총예산, 허용 가맹점, 건당 승인 임계, 기한, 수수료 포함 예산, 호출 폭주 한도(분당·일일), 정지(pause) — 전부 온체인 `PolicyVault.spend()`의 판정 순서(아래 "Boundary & where enforced")로 고정된다 |
-| AI는 경계를 넓힐 수 없다 | Kiln이 "위임 목적에 맞지 않음"(mismatch)·판단 실패(invalid_output·error)로 답해도 결과는 **승인 대기로만 엄격화**된다(D-10 fail-closed) — Kiln이 코드가 이미 막은 요청을 통과시키는 경로는 없다 |
-
-## Users / 사용자
-
-| Type / 유형 | Need / 니즈 |
-|---|---|
-| Budget owner (club president) / 돈을 맡기는 사람 (동아리 회장) | 자연어 위임 → 정책 확인 → 지갑 서명, 지출 추적, 승인, 중지, 영수증 |
-| Auditor (third party) / 검사하는 사람 (감사·회원) | 소유자·운영자에게 묻지 않고 공개 기록(증거 JSON + 온체인 이벤트)만으로 각 결제가 허용 범위 안이었는지 재구성 |
-| Spending agent (software) / 지출 에이전트 | 정책 안에서만 결제를 실행, 막히면 사유가 기록됨, 규칙을 스스로 바꿀 수 없음 |
-
-상세는 `docs/PRD.md` "사용자" 절 참조.
+| 사용자 | 예산을 맡기는 사람(동아리 회장 — 소유자 지갑), 검사하는 사람(감사·회원 — 제3자, 소유자·운영자에게 묻지 않고 공개 기록만으로 각 결제가 허용 범위 안이었는지 재구성), 지출 에이전트(정책 안에서만 결제, 규칙을 스스로 바꿀 수 없음) |
+| 문제 | 행사비 지출을 AI에 맡길 때 얼마까지·어디에 쓸 수 있는지를 AI 판단에 맡기면 위험하다 — 한도는 AI가 아니라 코드가 정해야 제3자가 신뢰할 수 있다 |
+| AI가 하는 일 (Kiln `qwen3-32b`) | ① 위임 문장(자연어) → 정책 후보(총예산·허용 가맹점·건당 승인 임계·기한) 변환. ② 개별 구매가 위임 목적에 맞는지 판단만 한다 — 예산·한도·가맹점 여부는 판단하지 않는다 |
+| 코드·컨트랙트가 강제하는 일 | 총예산, 허용 가맹점, 건당 승인 임계, 기한, 수수료 포함 예산, 호출 폭주 한도(분당·일일), 정지(pause) — 온체인 `PolicyVault.spend()`의 판정 순서(아래)로 고정 |
+| AI는 경계를 넓힐 수 없다 | Kiln이 "위임 목적에 맞지 않음"(mismatch)·판단 실패(invalid_output·error)로 답해도 결과는 **승인 대기로만 엄격화**된다(fail-closed) — 코드가 이미 막은 요청을 AI가 통과시키는 경로는 없다 |
 
 ## Boundary & where enforced / 경계와 강제 지점
 
-`chain/contracts/PolicyVault.sol`의 `spend()`가 매 요청마다 아래 순서로 판정한다(TS `evaluatePrecheck`가 같은 순서를 미러 — 패리티 테스트 대상, `docs/Architecture.md` 1절 "spend 판정 순서"). 차단(1~8)이 대기(9)보다 우선한다.
+`chain/contracts/PolicyVault.sol`의 `spend()`가 매 요청마다 아래 순서로 판정한다(TS `evaluatePrecheck`가 같은 순서를 미러). 차단(1~8)이 대기(9)보다 우선한다.
 
 | 순서 | 조건 | 결과 (사유 코드) |
 |---|---|---|
@@ -110,169 +35,31 @@ API 키가 필요 없다: 가짜 Kiln(`KILN_MODE=fake`)과 로컬 체인을 쓴�
 | 9 | 임계 초과 또는 AI 목적 불일치(`agentReviewRequest`) | 대기 — `SpendPending`(소유자 승인 필요) |
 | 10 | 그 외 | 실행 — `SpendExecuted` |
 
-차단·대기는 revert가 아니라 이벤트(`SpendBlocked(reason)`/`SpendPending(flags)`)로 기록되고 tx는 성공(mined)한다 — 사전 검사(코드)가 막은 요청도 같은 인자로 PolicyVault에 제출해 온체인에 남긴다(F-06).
+차단·대기는 revert가 아니라 이벤트(`SpendBlocked(reason)`/`SpendPending(flags)`)로 기록되고 tx는 성공(mined)한다 — 사전 검사(코드)가 막은 요청도 같은 인자로 PolicyVault에 제출해 온체인에 남긴다.
 
 ## How the chain is used / 체인 사용 방식
 
-> 해커톤 기준 문구: "Show how the chain is used by the workflow: which state the agent reads, writes, or settles." — 아래 표가 그 답이다 (Base Sepolia, 컨트랙트 `chain/contracts/PolicyVault.sol`).
+Base Sepolia, 컨트랙트 `chain/contracts/PolicyVault.sol`. 정산 자산은 vault가 보유한 ERC20(`MockKRWT`)이다.
 
 | 주체 / Actor | Reads / 읽는 것 | Writes / 쓰는 것 | Settles / 정산하는 것 |
 |---|---|---|---|
-| Agent (지출 에이전트, 서명 키는 CLI 프로세스에만 존재) | 지출 요청마다 사전 검사 전에 `getState()` 1회로 잔여 예산 산출용 값(`budget`·`spent`·`reserved`)·`paused`·`policyVersion`·`expiresAt`·호출 카운터·`vaultBalance`·허용 가맹점·블록 시각을 읽는다 (`PolicyVault.sol:264-284`, `src/adapters/chain/viemVault.ts:49`, `src/core/usecases/processSpendRequest.ts:91`) | `spend(requestId, merchant, amount, agentReviewRequest, evidenceHash)` 한 가지뿐 (`PolicyVault.sol:193`, `viemVault.ts:184`, `processSpendRequest.ts:170`). 사전 검사가 막은 요청도 같은 인자로 제출해 `SpendBlocked`/`SpendPending`이 온체인에 남는다 (`processSpendRequest.ts:83`). `onlyAgent`라 다른 함수는 호출할 수 없다 (`PolicyVault.sol:144-147`) | 직접 정산하지 않는다 — 통과한 `spend()`의 컨트랙트 내부 `_pay`가 `token.safeTransfer(merchant, amount)`와 `token.safeTransfer(feeRecipient, fee)`를 실행한다 (`PolicyVault.sol:220-222, 333-336`) |
-| Owner (소유자, 브라우저 지갑 서명) | 대시보드용 `getState()`(`src/app/api/_lib/handlers.ts:78`)와 `getLogs()` 이벤트 수집(`src/core/usecases/syncChainEvents.ts:16`, 1,000블록 청크 + 읽기 재시도: `viemVault.ts:123-135`) | `setPolicy`(`PolicyVault.sol:162`), `approve`(226), `reject`(242), `pause`(252), `unpause`(258) — 서버는 호출 데이터만 준비(`/api/owner-actions/prepare`)하고 소유자 지갑이 서명·전송하며(`src/ui/wallet/ownerAction.ts:111`), 서버는 tx 영수증으로 확인만 한다(`confirmOwnerAction.ts:23`) | 승인 대기 건을 `approve()`하면 그 자리에서 같은 `_pay`로 정산 + `Approved`·`SpendExecuted`(viaApproval) 발행 (`PolicyVault.sol:226-239`). `reject()`는 예약분(`reserved`)만 풀고 이체 없음 (`PolicyVault.sol:242-250`) |
-| Third party (감사자, 키 불필요) | `getLogs()`로 배포 블록부터 모든 vault 이벤트, `getReceiptEvents()`로 tx 영수증 이벤트를 읽어 증거 JSON의 해시와 대조 (`src/core/usecases/verifyTx.ts:147, 209`) | 없음 (읽기 전용) | 없음 — 이벤트에 남은 `SpendExecuted`(금액·수수료·`evidenceHash`)로 정산 결과를 재구성만 한다 |
+| Agent (지출 에이전트) | 지출 요청마다 `getState()`로 잔여 예산 산출용 값·`paused`·`policyVersion`·기한·호출 카운터·vault 잔액·허용 가맹점을 읽는다 | `spend(requestId, merchant, amount, agentReviewRequest, evidenceHash)` 한 가지뿐 (`onlyAgent`). 사전 검사가 막은 요청도 제출해 `SpendBlocked`/`SpendPending`이 온체인에 남는다 | 직접 정산하지 않는다 — 통과한 `spend()` 안에서 컨트랙트가 가맹점과 수수료 수령 주소로 토큰을 전송한다 |
+| Owner (소유자, 브라우저 지갑 서명) | 대시보드용 `getState()`와 이벤트 로그 | `setPolicy`, `approve`, `reject`, `pause`, `unpause` — 서버는 호출 데이터만 준비하고 소유자 지갑이 서명·전송한다 | 승인 대기 건을 `approve()`하면 그 자리에서 정산 + `Approved`·`SpendExecuted` 발행. `reject()`는 예약분만 풀고 이체 없음 |
+| Third party (감사자, 키 불필요) | 배포 블록부터 모든 vault 이벤트와 tx 영수증 이벤트를 읽어 증거 JSON의 해시와 대조 | 없음 (읽기 전용) | 없음 — 이벤트에 남은 `SpendExecuted`(금액·수수료·`evidenceHash`)로 정산 결과를 재구성만 한다 |
 
-- 정산 자산은 vault가 보유한 ERC20(`MockKRWT`)이고, 정산은 `spend()`/`approve()` 안에서만 일어난다. AI(Kiln)는 체인 상태를 읽지도 쓰지도 않는다 — 온체인 인자는 `agentReviewRequest`(불리언) 하나로만 반영된다 (`processSpendRequest.ts:96-111, 170`).
-- 웹 서버는 개인키를 갖지 않는다: `AGENT_PRIVATE_KEY`/`OWNER_PRIVATE_KEY`가 있으면 시작을 거부한다 (`src/server/env.ts:7`, D-16). 에이전트 `spend()` 서명은 CLI(`cli/e2e.ts:146`)에서만 일어난다.
+- AI(Kiln)는 체인 상태를 읽지도 쓰지도 않는다 — 온체인 인자는 `agentReviewRequest`(불리언) 하나로만 반영된다.
+- 웹 서버는 개인키를 갖지 않는다: `AGENT_PRIVATE_KEY`/`OWNER_PRIVATE_KEY`가 있으면 시작을 거부한다. 에이전트 `spend()` 서명은 CLI에서만 일어난다.
 
-## Status / 구현 상태
+## 사람이 보는 화면 4개
 
-| 영역 | 상태 |
-|---|---|
-| 테스트 하네스 (Next.js 골격, Hardhat, Vitest 단위/통합, 스모크 테스트) | 완료 (T-01) |
-| PolicyVault / Mock ERC20 컨트랙트 | 완료 (T-02) |
-| 에이전트 코어: 사전 검사 정책 엔진 + Kiln 클라이언트 + 증거 저장 | 완료 (T-03) |
-| E2E 데모 + 증거 JSON + 제3자 검증 스크립트 | 완료 (T-04) — Base Sepolia 실행 완료(아래 "Base Sepolia evidence" 참조, 2026-09-28T14:44Z, 실제 Kiln 8회) |
-| UI ① 위임 + ② 대시보드 | 완료 (T-05) — 지갑 서명 경로는 통합 테스트로만 검증, 실제 MetaMask 등 브라우저 확장 미검증 |
-| UI ③ 감사 + ④ 효율 리포트 | 완료 (T-06), 공개 RPC 읽기 재시도 (T-07) |
-| 화면 시각 다듬기 (4개 화면, `src/app/globals.css`만 변경 — 마크업·동작·테스트 변경 없음) | 완료 (T-08) |
-| 좁은 폭 Tx 해시 한 줄 표시 · 위임 입력 오류 표시 | 완료 (T-09) |
-| GitHub Actions 최소 CI (push·PR마다 `npm test`) | 완료 (T-10) |
-| 에너지 표기: 2장 시나리오 추정 | 완료 (T-12) |
-| Thinking mode A/B 측정 (`intent_judge` 1개 입력 × 3모드 × 3회, 실제 Kiln 9회) | 완료 (T-11) — 결과는 아래 "Thinking mode A/B (T-11)" 참조, 기본값 변경은 T-15에서 완료 |
-| A/B 스크립트 오류 경로 기록 정확화 (중단 시 실제 status·attempts·code 기록, 2xx 파싱 실패 포함 모든 재시도 차단, 실패 경로 키 비노출 테스트) | 완료 (T-13, 커밋 c1f6644) |
-| Thinking mode A/B 측정 — 정책 변환(`policy_parse`) 흐름 (default vs no_think × 3회, 실제 Kiln 6회) | 완료 (T-14) — 결과는 아래 "Thinking mode A/B — policy_parse (T-14)" 참조 |
-| `KILN_THINKING_MODE` 기본값 `default` → `no_think` 변경 | 완료 (T-15, D-39, ADR-0007) |
-| 대시보드 Tx 링크 접근 이름을 전체 해시로(`aria-label`) · ≤1024px 표 안 배지 줄바꿈 방지로 행 높이 과다 해소 (`TxHashLink.tsx`, `globals.css`, 테스트 `txHashLink.test.ts`) | 완료 (T-16, 리뷰 치명 0건·QA DoD 통과 — `docs/Tasks.md` 확인) — 375/768px "Too many attempts" 행 135px → 61.4px, 1280px 불변(implementer 측정, 인용) |
-| Thinking mode A/B 측정 — 의도 판단 "목적 불일치" 케이스 (제출 증거 step 5와 같은 입력, default·no_think × 3회, 실제 Kiln 6회) | 완료 (T-18, 리뷰 치명 0건·QA DoD 통과 — `docs/Tasks.md` 확인) — 결과는 아래 "Thinking mode A/B — 목적 불일치 (T-18)" 참조 |
-| UI 언어 선택 — 기본 한국어 + 상단 "한국어/English" 전환 (F-17, D-40~D-44, ADR-0008), 제품명 화면 표시 ko "곳간지기" / en "Allowance", 감사 화면 VaultPaused/VaultUnpaused 라벨 결함 해소 | 완료 (T-17, 리뷰 치명 0건·QA DoD 통과 — `docs/Tasks.md` 확인). 미검증: 지갑 연결 후 서명 흐름·게이트 문구(wrong_chain·not_owner·disconnected)의 한국어 화면(지갑 필요), 위임 화면 정책 검토·오류 상태 화면(Kiln 호출 필요) |
-
-작업 단위·근거는 `docs/Tasks.md` 참조.
-
-## Structure / 구조
-
-단일 repo, 패키지 2개: 루트(Next.js 앱 + 에이전트 코어 + CLI) / `chain/`(Hardhat 전용). npm workspaces 미사용.
-
-**현재 실제 구조 (T-01~T-07 완료 시점):**
-
-```
-/                                  # 루트 패키지
-├─ package.json  tsconfig.json  next.config.ts
-├─ vitest.config.ts                # 계층 ② 단위 (tests/unit)
-├─ vitest.integration.config.ts    # 계층 ③ 통합 (tests/integration), Hardhat 노드(포트 8546) 자동 기동
-├─ .env.example                    # 환경 변수 플레이스홀더 (개인키 자리는 .env가 아니라 .env.cli용, ADR-0005)
-├─ cli/                            # tsx 실행 스크립트 (개인키를 쓰는 유일한 프로세스)
-│  ├─ deploy.ts                    # 배포 통합 (--chain localhost|baseSepolia), T-02의 chain:deploy:local 대체 (D-30)
-│  ├─ e2e.ts                       # E2E 데모 (로컬·Base Sepolia 공통, 8단계, F-15)
-│  ├─ export-evidence.ts, verify-evidence.ts   # 증거 JSON 내보내기 · 제3자 검증 (F-12)
-│  ├─ report-efficiency.ts         # 흐름별 토큰·cost·에너지 추정(2장 시나리오) Markdown 표 (F-14, T-06)
-│  └─ _env.ts, _container.ts       # CLI 전용 env 로드·의존성 조립
-├─ src/
-│  ├─ app/                         # Next.js App Router: layout.tsx, page.tsx, dashboard/, delegate/, audit/, efficiency/, globals.css
-│  │  └─ api/                      # Route Handler 8개 (policy/parse, owner-actions/{prepare,confirm}, vault/{activity,state}, receipts/[requestId], audit/[txHash], efficiency)
-│  ├─ core/                        # 프레임워크 무의존 도메인·유스케이스 (domain/, usecases/, ports.ts, errors.ts)
-│  ├─ adapters/                    # kiln/ (실제+가짜 클라이언트), chain/ (viemVault.ts, networks.ts, readRetry.ts, generated/ ABI·bytecode), db/ (SQLite 증거·이벤트 캐시 저장)
-│  ├─ server/                      # Route Handler용 env 로드·의존성 조립 (server-only, 개인키 있으면 시작 거부 — D-16)
-│  ├─ config/                      # constants.ts, merchants.ts, env.ts(서버·CLI 공용 zod 스키마, ADR-0005)
-│  └─ ui/                          # 위임(delegate/)·대시보드(dashboard/)·감사(audit/)·효율(efficiency/)·지갑 연결·서명(wallet/)·재사용 컴포넌트(components/)·훅(hooks/)·UI 언어 사전·전환(i18n/, F-17)
-├─ tests/
-│  ├─ unit/                        # 계층 ②
-│  ├─ integration/                 # 계층 ③ + setup/hardhat-node.ts
-│  └─ fixtures/rule-cases.json     # 컨트랙트·precheck 공용 판정 케이스
-├─ chain/                          # Hardhat 패키지 (별도 package.json)
-│  ├─ contracts/                   # PolicyVault.sol, MockKRWT.sol
-│  ├─ scripts/                     # export-artifacts.ts
-│  └─ test/                        # 계층 ① — PolicyVault·MockKRWT·ruleCases·scripts 테스트
-├─ deployments/baseSepolia.json    # Base Sepolia 배포 주소·deployBlock (커밋)
-├─ evidence/base-sepolia/          # 제출용 증거 JSON (커밋 — evidence.json, run-*.json, "Base Sepolia evidence" 절 참조)
-├─ data.local/                     # 로컬 산출물 (배포 주소·SQLite·E2E 증거, .gitignore로 제외)
-└─ docs/, .agents/, .claude/       # 규칙·문서
-```
-
-상세는 `docs/Architecture.md` "구조 개요", 작업별 범위는 `docs/Tasks.md` 참조.
-
-## Required environment / 필요 환경
-
-- Node.js 22 (확인됨: `node -v` → v22.14.0), npm
-- `.env.example`을 `.env`로 복사한 뒤 값을 채운다 — **실제 값은 커밋 금지** (`.gitignore`가 `.env`류를 제외)
-- `KILN_THINKING_MODE` 기본값은 `no_think`다(T-15, D-39). 개인 env 파일에 이 변수를 명시했다면 명시한 값이 쓰인다(기본값은 명시하지 않았을 때만 적용).
-- 체인 작업(컨트랙트 컴파일·테스트)은 `chain/` 패키지의 별도 설치가 필요 — 아래 표의 `npm --prefix chain ci`
-
-```bash
-cp .env.example .env
-```
-
-## Run / Build / Test — 검증된 명령어
-
-아래는 `docs/CodingRules.md` "검증된 명령어" 절의 원문이다 (변형 없이 그대로 사용).
-
-| 용도 | 명령 (원문) | 검증일 |
+| 화면 | 경로 | 내용 |
 |---|---|---|
-| 설치 (루트 — Next 앱·코어·Vitest) | `npm install` | 2026-09-28 |
-| 설치 (chain — lockfile 기준, 루트에서) | `npm --prefix chain ci` | 2026-09-28 |
-| chain 의존성 lock 갱신 (chain 디렉터리에서 — `--prefix` 쓰지 말 것) | `cd chain && npm install` (Git Bash) | 2026-09-28 |
-| 빌드 (Next.js) | `npm run build` | 2026-09-28 |
-| 빌드 (컨트랙트 컴파일) | `npm run chain:compile` | 2026-09-28 |
-| 실행 (개발 서버, 127.0.0.1:3000) | `npm run dev` | 2026-09-28 |
-| 테스트 (전체: contracts → unit → int) | `npm test` | 2026-09-28 |
-| 테스트 ① 컨트랙트 (Hardhat) | `npm run test:contracts` | 2026-09-28 |
-| 테스트 ② 단위 (Vitest) | `npm run test:unit` | 2026-09-28 |
-| 테스트 ③ 통합 (Vitest) | `npm run test:int` | 2026-09-28 |
-| ABI·bytecode export (chain/build/artifacts → src/adapters/chain/generated/; `chain:compile`이 컴파일 뒤 자동 호출) | `npm run chain:export` | 2026-09-28 |
-| 로컬 체인 노드 실행 (127.0.0.1:8545, 별도 터미널 — 종료 전까지 점유) | `npm run chain:node` | 2026-09-28 |
-| 로컬 배포 (실행 중인 chain:node에 MockKRWT+PolicyVault 배포, vault에 1,000,000 mint → data.local/deployments/localhost.json) | `npm run deploy -- --chain localhost --rpc http://127.0.0.1:8545` | 2026-09-28 |
-| 테스트 ④ E2E 로컬 (chain:node 실행 중 — 배포·8단계·증거 내보내기·검증까지, 종료 코드 0 = 통과) | `npm run e2e:local` | 2026-09-28 |
-| 증거 JSON 내보내기 (로컬 E2E DB → data.local/evidence/localhost/evidence.json) | `npm run evidence:export -- --chain localhost --db data.local/e2e-localhost.sqlite` | 2026-09-28 |
-| 제3자 검증 (로컬 — mismatches 0이면 종료 코드 0) | `npm run evidence:verify -- --file data.local/evidence/localhost/evidence.json --rpc http://127.0.0.1:8545` | 2026-09-28 |
-| 테스트 ① + 가스 표 (hardhat-gas-reporter, toolbox 내장) | `REPORT_GAS=true npm run test:contracts` (Git Bash) | 2026-09-28 |
-| 타입 검사 (루트 — src·tests 전체, 산출물 없음) | `npx tsc --noEmit -p tsconfig.json` | 2026-09-28 |
-| 테스트 ③ 단일 파일 (Hardhat 노드 자동 기동 포함) | `npx vitest run --config vitest.integration.config.ts tests/integration/db.test.ts` | 2026-09-28 |
-| 실행 (개발 서버를 로컬 체인·가짜 Kiln으로 강제 — 사용자 env 파일이 CHAIN=baseSepolia여도 프로세스 환경 변수가 우선. chain:node 실행 + 로컬 배포 후, Git Bash) | `CHAIN=localhost KILN_MODE=fake RPC_URL=http://127.0.0.1:8545 DATABASE_PATH=data.local/app-ui-dev.sqlite npm run dev` | 2026-09-28 |
-| 효율 리포트 표 (내보낸 증거 JSON → 흐름별 토큰·cost·에너지 추정(2장 시나리오) Markdown 표, .env·DB·RPC 불필요) | `npm run report:efficiency -- --file evidence/base-sepolia/evidence.json` | 2026-09-29 |
-| 제3자 검증 (Base Sepolia 공개 RPC 기본값, 읽기 전용 — mismatches 0이면 종료 코드 0) | `npm run evidence:verify -- --file evidence/base-sepolia/evidence.json` | 2026-09-29 |
-| 설치 (루트 — lockfile 기준, CI 검증: GitHub Actions run 36522315216, ubuntu-latest·Node 22.14) | `npm ci` | 2026-09-29 |
-| CI 워크플로 (push·PR마다 자동 — `.github/workflows/test.yml`: `npm ci` → `npm --prefix chain ci` → `npm test`, 수동 실행 명령 아님) | `.github/workflows/test.yml` | 2026-09-29 |
-| Thinking mode A/B 측정 (T-11 — 실제 Kiln 유료 호출 정확히 9회: intent_judge × default·kwargs_off·no_think × 3회, 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/ JSON + stdout Markdown 표) | `npm run measure:thinking` | 2026-09-29 |
-| 테스트 ② 단일 파일 (T-11 측정 스크립트 — 가짜 Kiln, 네트워크 없음) | `npx vitest run tests/unit/thinkingAb.test.ts` | 2026-09-29 |
-| Thinking mode A/B 측정 — 정책 변환 흐름 (T-14 — 실제 Kiln 유료 호출 상한 6회: policy_parse × default·no_think × 3회, 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/thinking-ab-policy_parse-*.json + stdout 토큰 표·필드별 일치 표) | `npm run measure:thinking -- --flow policy_parse` | 2026-09-29 |
-| Thinking mode A/B 측정 — 의도 판단 "목적 불일치" 케이스 (T-18 — 실제 Kiln 유료 호출 상한 6회: intent_judge × default·no_think × 3회, 입력은 제출 증거 step 5(Daiso 15,000 "Personal gaming mouse"), 실패 시 재시도 없이 중단. `.env`의 KILN_API_KEY를 스크립트가 런타임 로드 → evidence/thinking-ab/thinking-ab-intent_judge-mismatch-*.json + stdout 토큰 표·게이트 줄) | `npm run measure:thinking -- --flow intent_judge --case mismatch` | 2026-09-29 |
+| ① 위임 | `/delegate` | 자연어 위임 문장 입력 → Kiln이 만든 정책 후보 확인·수정 → 소유자 브라우저 지갑 서명 |
+| ② 대시보드 | `/dashboard` | 잔여 예산·지출 목록, 승인 대기함(승인/거절 서명), 정지(pause) 버튼, 영수증 |
+| ③ 감사 | `/audit` | tx hash 입력 → 증거 재구성 + 해시 일치 표시 (제3자가 소유자·운영자 없이 검증) |
+| ④ 효율 | `/efficiency` | 흐름별 토큰·cost·호출 수, 규칙 차단으로 아낀 Kiln 호출, 에너지 추정(2장 시나리오) |
 
-통합 테스트(계층 ③)는 포트 8546의 Hardhat 노드 하나를 공유하고, 동시에 여러 번 실행하면 잠금 파일로 직렬화되어 한 번에 하나씩만 돈다(`tests/integration/setup/hardhat-node.ts`).
-
-`npm --prefix chain install`(옛 행)은 실행할 때마다 `chain/package.json`에 `"gwdc2026": "file:.."`를 재추가해 순환 링크를 만드는 문제가 있어 위 두 행(`npm --prefix chain ci` / `cd chain && npm install`)으로 교체됐다(`docs/CodingRules.md` 참조). `npm run chain:deploy:local`(옛 행)도 배포 경로가 `cli/deploy.ts` 하나로 통합되며(D-30) 위 `npm run deploy -- --chain localhost ...` 행으로 교체됐다.
-
-## Local demo / 로컬 데모 방법
-
-별도 터미널 3개(또는 순차)로 다음을 실행한다 (모두 위 표의 원문):
-
-```bash
-# 1. 로컬 체인 노드 (별도 터미널, 종료 전까지 점유)
-npm run chain:node
-
-# 2. 배포 (MockKRWT + PolicyVault, vault에 1,000,000 mint)
-npm run deploy -- --chain localhost --rpc http://127.0.0.1:8545
-
-# 3. E2E 8단계 데모 + 증거 내보내기·검증까지 한 번에 (종료 코드 0 = 통과)
-npm run e2e:local
-
-# 4. UI 시연 (로컬 체인·가짜 Kiln 고정, 3번과 별도 DB)
-CHAIN=localhost KILN_MODE=fake RPC_URL=http://127.0.0.1:8545 DATABASE_PATH=data.local/app-ui-dev.sqlite npm run dev
-```
-
-## Submission evidence policy / 제출 증거 운영 규칙
-
-> 사용자 결정 원문(선택지 "운영 규칙으로 (추천)"): "제출용 증거는 CLI(e2e:sepolia --deploy)가 새 vault와 전용 DB로 만든 것만 내보냅니다. UI 시연은 별도 DB를 씁니다. 코드 수정이 없어 사용량이 들지 않고, 규칙은 docs가 README에 적습니다."
-
-즉 해커톤 제출용 증거 JSON은 `npm run e2e:sepolia -- --deploy`가 만든 DB에서만 `evidence:export`로 내보낸다. UI를 켜서 시연할 때는 위 로컬 데모 4번처럼 `DATABASE_PATH`를 별도로 지정해 같은 DB를 공유하지 않는다. 이유: UI에서 소유자가 지갑 서명을 거절하면 anchor 없는(tx가 없는) owner 증거가 DB에 남고, 그 DB로 내보낸 증거를 검증하면 `TX_NOT_FOUND` 불일치로 세어진다 — 이는 결함이 아니라 설계대로의 동작이다(D-23, `docs/Architecture.md` 배포 절 "운영 규칙").
-
-## Base Sepolia 실행 절차 (사용자용, 재현 방법)
-
-Base Sepolia 실행은 2026-09-28T14:44Z에 1회 완료했다(아래 "Base Sepolia evidence" 절 참조). 재현하려면:
-
-1. `.env`에: `CHAIN=baseSepolia`, `RPC_URL=https://sepolia.base.org`, `KILN_MODE=real`, `KILN_API_KEY=<발급받은 키>`, `OWNER_ADDRESS=<소유자 지갑 주소>`, `FEE_RECIPIENT_ADDRESS=<수수료 수령 주소>`.
-2. **개인키 2개(`AGENT_PRIVATE_KEY`, `OWNER_PRIVATE_KEY`)는 `.env`가 아니라 `.env.cli`에만 넣는다** — Next.js는 `.env`를 서버 프로세스에 자동 로드하므로, 키가 `.env`에 있으면 웹 서버(`src/server/env.ts`, D-16)가 시작을 거부한다.
-3. 실행: `npm run e2e:sepolia -- --deploy`
-4. 재내보내기·검증(위 표 원문, `--chain` 값만 `baseSepolia`로): `npm run evidence:export -- --chain baseSepolia --db <e2e:sepolia가 쓴 DB 경로>`, `npm run evidence:verify -- --file <내보낸 evidence.json> --rpc https://sepolia.base.org`.
+화면 언어는 기본 한국어이며 상단 "한국어/English" 버튼으로 전환한다(선택은 쿠키에 저장). 제품명 표시는 한국어 "곳간지기" / 영어 "Allowance". AI가 생성한 문장, 가맹점 이름, 금액 등 데이터 값과 증거 JSON은 번역하지 않는다.
 
 ## Base Sepolia evidence / Base Sepolia 실행 증거
 
@@ -291,14 +78,22 @@ Base Sepolia 실행은 2026-09-28T14:44Z에 1회 완료했다(아래 "Base Sepol
 | 7 | **SpendBlocked — 호출 폭주 차단** (동시 4건 중 1건) | reason 4 `RATE_LIMIT_MINUTE` | https://sepolia.basescan.org/tx/0x76aba0eaa63d0e5b254a894ba9dcdbe9d9da2ab8421a9324a6f6c817038d1a1b |
 | 8 | VaultPaused (owner) → **SpendBlocked — 정지 중** → VaultUnpaused (owner) | reason 1 `PAUSED` | https://sepolia.basescan.org/tx/0xed174525287f2b995097c80f088a3f03223e51c81070e71c353d63330bfc8774 → https://sepolia.basescan.org/tx/0x0672932208dd01532bdaa5bee95b4882e9931dd47de5bd6e65c042f0abc78922 → https://sepolia.basescan.org/tx/0x975b21728f112a2e2d07bb036eb7e17fe7dca35d5c701b468650252263372755 |
 
-전체 17단계(배포 3건 포함)는 run JSON 원문 참조. `run-2026-09-28T14-44-28-469Z.json`의 `"mismatches": 0` — 내보낸 증거 JSON을 그 실행 시점에 재해시해 온체인 이벤트와 대조한 결과다(아래 "Verify it yourself"에서 메인 세션이 직접 재확인한 결과와 별개로 실행 로그 자체에 기록된 값).
+전체 17단계(배포 3건 포함)는 run JSON 원문 참조.
+
+## Verify it yourself (third party) / 제3자 직접 검증
+
+`.env`·API 키·DB·운영자 없이 Base Sepolia 공개 RPC(읽기 전용)만으로 검증할 수 있다. Node.js 22와 npm이 필요하다.
+
+```bash
+npm ci
+npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
+```
+
+기대 결과: `mismatches: 0`(종료 코드 0) — 레코드 14건·온체인 이벤트 15건 전부 `OK`(각 항목의 재계산 해시 = 온체인 해시)(2026-09-29 직접 실행 확인). 증거 JSON을 변조한 사본으로 실행하면 해당 항목이 불일치로 보고된다. 감사 화면(`/audit?tx=<hash>`)은 같은 대조를 tx hash 1건 단위로 브라우저에서 보여준다.
 
 ## Efficiency (per flow) / 흐름별 효율
 
-`npm run report:efficiency -- --file evidence/base-sepolia/evidence.json` 실행 원문(docs 에이전트 재실행, 2026-09-29 — 새 라벨 반영):
-
-```
-provider: kiln
+`npm run report:efficiency -- --file evidence/base-sepolia/evidence.json` 결과(2026-09-29 실행). 제출 증거는 Thinking mode `default` 실행분이다.
 
 | flow | Kiln calls | requests | prompt | completion | reasoning | total tokens | cost (USD) | energy est., 2-card scenario (Wh) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -307,145 +102,37 @@ provider: kiln
 | rule_block | 0 | 3 | 0 | 0 | 0 | 0 | 0 | 0.0000 |
 | total | 8 | - | 3040 | 2245 | 1864 | 5285 | 0.00080528 | 4.2327 |
 
-Rule-blocked requests: 3 (0 Kiln calls). Avoided (estimate from the intent_judge average): ~1804 tokens, ~1.4675 Wh (2-card scenario).
-Energy: E_Wh = latency_s × cards × P_card_W ÷ 3600 (2-card scenario estimate: the full power of 2 cards is attributed to this request, batching ignored)
-  - cards = 2 cards — qwen3-32b BF16 weights ≈ 64 GB > 48 GB HBM of one FuriosaAI RNGD card → at least 2 cards (assumed; Kiln's serving setup is not published)
-  - cardPowerW = 180 W — FuriosaAI RNGD published TDP 180 W (assumed full draw for the whole request)
-Estimate (assumed), not measured. 2-card scenario: Kiln does not publish how many cards serve qwen3-32b, so the card count cannot be confirmed; with more cards the value grows proportionally. Latency is measured by this client; power and card count are assumptions.
-```
+- **에너지는 추정(2장 시나리오)이며 측정값이 아니다** — 가정: FuriosaAI RNGD 카드 2장 × 180W. Kiln은 qwen3-32b를 몇 장의 카드로 서빙하는지 공개하지 않아 카드 수는 확정할 수 없고, 카드가 더 많으면 값이 비례해 커진다. 지연은 클라이언트가 측정했고 전력·카드 수는 가정이다.
+- **불필요한 추론 절감**: 사전검사에서 확정된 요청(`rule_block` 3건)은 Kiln을 0회 호출했다 — `intent_judge` 평균으로 추정하면 약 1,804 토큰·1.4675 Wh(2장 시나리오 추정)를 아꼈다.
 
-- **에너지는 추정(2장 시나리오)이며 측정값이 아니다** — 가정: FuriosaAI RNGD 카드 2장 × 180W(위 원문 근거), `docs/DECISIONS.md` D-20. Kiln은 qwen3-32b를 몇 장의 카드로 서빙하는지 공개하지 않아 카드 수는 확정할 수 없고, 카드가 더 많으면 값이 비례해 커진다. 과대·과소 양쪽 가능성이 섞여 있다(D-38, `docs/Architecture.md` "표시 문구 규격").
-- **불필요한 추론 절감**: 사전검사에서 확정된 요청(위 표 `rule_block` 3건)은 Kiln을 0회 호출했다 — `intent_judge` 흐름의 평균으로 추정하면 약 1,804 토큰·1.4675 Wh(2장 시나리오 추정)를 아꼈다(추정, 위 원문 "Avoided" 줄).
-- **사전검사에서 확정되지 않은 차단은 Kiln을 호출한다 — 호출 폭주 사례 1건**: `run-2026-09-28T14-44-28-469Z.json`의 step 7(동시 4건 중 1건)은 `precheckAgreed: false`, `kilnCalls: 1`(616 tokens)이었다. 사전검사는 통과해 Kiln 판단을 받았지만 온체인에서 `SpendBlocked` reason 4(`RATE_LIMIT_MINUTE`)로 차단됐다 — 동시 요청은 사전검사 시점에 분당 한도 초과가 확정되지 않을 수 있다(추정 — 확인 방법: step 7 요청들의 사전검사 기록 비교). 이 1건은 위 `rule_block` 3건에 포함되지 않는다.
+## 빠른 시작 (로컬 데모)
 
-### Thinking mode A/B (T-11)
-
-Qwen3의 reasoning(thinking) 토큰을 끄는 방법이 실제로 통하는지 Kiln `qwen3-32b`에 같은 요청을 3가지 모드로 보내 측정했다. 수치는 결과 파일 `evidence/thinking-ab/thinking-ab-2026-09-29T05-44-54-668Z.json`의 `summary` 원문이다.
-
-- 측정 조건: `intent_judge` 흐름, 고정 입력 1개(purpose "Event expenses", 가맹점 Daiso, 30000, "Balloons and table decorations for the welcome party"), 모델 `qwen3-32b`, 모드 3개(`default` / `kwargs_off` / `no_think`) × 3회 = 실제 Kiln 요청 9회(전부 HTTP 200, 재시도·중단 없음), 2026-09-29 실행, 라운드로빈 순서.
-- 모드별 평균 (3회) — 괄호는 `default` 대비 절감률(결과 파일 `*SavingsPct`):
-
-| mode | prompt | completion | reasoning | total | latency (ms) |
-|---|---:|---:|---:|---:|---:|
-| default | 352 | 279.7 | 227 | 631.7 | 5952.3 |
-| kwargs_off | 356 | 42 (-85%) | 0 (-100%) | 398 (-37%) | 1159 (-80.5%) |
-| no_think | 356 | 44 (-84.3%) | 1 (-99.6%) | 400 (-36.7%) | 1087.7 (-81.7%) |
-
-- 판단 결과: 3개 모드 9회 모두 `match`로 동일(`judgmentsAgree: true`).
-- 재현: `npm run measure:thinking` — **실제 유료 Kiln 호출이 정확히 9회 발생한다**(실패 시 재시도 없이 중단). `.env`의 `KILN_API_KEY`가 필요하다.
-- 한계:
-  - 모드당 3회 소표본이다 — 통계적 일반화는 못 한다. 입력도 1개뿐이다.
-  - 지연에는 프롬프트 캐시 영향이 섞였을 수 있다(추정 — 9건 중 8건에서 `cachedTokens` 351~355, `no_think` 1회차만 58). 확인 방법: 캐시가 비었을 때와 찬 상태를 나눠 재측정한다. 토큰 수 비교에는 영향이 없다.
-  - `no_think`의 reasoning 토큰 1(3회 모두)은 원인을 확인하지 못했다(추정 — 모드 지시 문구 자체의 토큰일 수 있음, 확인 방법: 응답 원문 대조).
-  - `KILN_THINKING_MODE` 기본값을 `no_think`로 변경했다(T-15, D-39, ADR-0007). 명시한 값은 그대로 존중된다.
-  - **제출 증거는 `default` 기준, 기본값 변경은 이후 실행부터**: Base Sepolia 제출 증거(위 Efficiency 표의 5,285 토큰·reasoning 1,864·에너지 4.2327 Wh, run `run-2026-09-28T14-44-28-469Z.json`)는 `default` 모드 실행 결과다. 기본값 변경은 그 이후 실행부터 적용되며, 제출 증거는 재생성하지 않았다.
-
-### Thinking mode A/B — policy_parse (T-14)
-
-정책 변환(`policy_parse`) 흐름에서도 같은 측정을 했다. 수치는 결과 파일 `evidence/thinking-ab/thinking-ab-policy_parse-2026-09-29T06-29-57-467Z.json`의 `summary`·`comparison` 원문이다.
-
-- 측정 조건: 고정 입력 1개("행사비 20만 원을 맡길게, 다이소·쿠팡만, 건당 5만 원 넘으면 물어봐"), 모델 `qwen3-32b`, 모드 2개(`default` / `no_think`) × 3회 = 실제 Kiln 요청 6회(전부 HTTP 200, `attempts` 1, 재시도·중단 없음), 2026-09-29 실행, 라운드로빈 순서.
-- 모드별 평균 (3회) — 괄호는 `default` 대비 절감률:
-
-| mode | prompt | completion | reasoning | total | latency (ms) |
-|---|---:|---:|---:|---:|---:|
-| default | 624 | 585.7 | 499.7 | 1209.7 | 8636 |
-| no_think | 628 | 85 (-85.5%) | 1 (-99.8%) | 713 (-41.1%) | 1735.3 (-79.9%) |
-
-- 정책 필드 비교: 구조 필드 6개(`parseResult`·`budget`·`approvalThreshold`·`merchantIds`·`expiresOn`·`unrecognizedMerchants`)는 6회 모두 동일했다. `purpose` 문구만 달랐다(default: "event expenses" / "Event expenses for club activities" ×2, no_think: "Event expenses" ×3) — default 3회끼리도 서로 달라 모델 편차로 보인다(추정).
-- 판정: 결과 파일의 `gate`는 `different`인데, 이는 판정 규칙 확정 전의 보수적 기록(어느 필드든 한 번이라도 다르면 different, `gateRule`)이다. 사용자가 구조 필드 기준으로 **통과**로 판정했다(PRD Open Question #24, ADR-0007).
-- 재현: `npm run measure:thinking -- --flow policy_parse` — **실제 유료 Kiln 호출이 정확히 6회 발생한다**(실패 시 재시도 없이 중단). `.env`의 `KILN_API_KEY`가 필요하다.
-- 한계: 입력 1개·모드당 3회 소표본이다. 지연에는 프롬프트 캐시 영향이 섞였을 수 있다(추정 — `cachedTokens`가 no_think 1·2회차 169, 3회차 627로 다름). `no_think`의 reasoning 토큰 1(3회 모두) 원인은 확인하지 못했다(추정).
-
-### Thinking mode A/B — 목적 불일치 (T-18)
-
-`no_think`가 "목적 불일치" 안전장치 판단(승인 대기로 엄격화하는 경로)을 유지하는지 확인했다. 수치는 결과 파일 `evidence/thinking-ab/thinking-ab-intent_judge-mismatch-2026-09-29T07-40-59-314Z.json`의 `summary`·`gate` 원문이다(docs 에이전트가 파일을 직접 읽고 대조).
-
-- 측정 조건: `intent_judge` 흐름, 입력은 제출 증거 step 5와 같다 — Daiso, 15,000, "Personal gaming mouse"(`evidence/base-sepolia/evidence.json:320-367`, `cli/e2e.ts:273`). 모델 `qwen3-32b`, 모드 2개(`default` / `no_think`) × 3회 = 실제 Kiln 요청 6회(전부 HTTP 200, `attempts` 1, 재시도·중단 없음), 2026-09-29 실행, 라운드로빈 순서.
-- 판단 결과: 두 모드 모두 6/6 `mismatch`(목적 불일치 → 승인 대기, `agentReviewRequest: true`). 게이트 `pass`(`no_think` 3/3 mismatch). 따라서 **`no_think`는 목적 불일치 안전장치 판단을 유지한다** — 기본값 `no_think` 유지 근거(D-39, PRD OQ #16 재확인 조건).
-- 모드별 평균 (3회) — 괄호는 `default` 대비 절감률:
-
-| mode | prompt | completion | reasoning | total | latency (ms) |
-|---|---:|---:|---:|---:|---:|
-| default | 345 | 254 | 212 | 599 | 4141 |
-| no_think | 349 | 44 (-82.7%) | 1 (-99.5%) | 393 (-34.4%) | 1061.3 (-74.4%) |
-
-- 재현: `npm run measure:thinking -- --flow intent_judge --case mismatch` — **실제 유료 Kiln 호출이 정확히 6회 발생한다**(실패 시 재시도 없이 중단). `.env`의 `KILN_API_KEY`가 필요하다.
-- 한계: 입력 1개·모드당 3회 소표본이다 — 다른 종류의 목적 불일치까지 일반화하지 못한다. 지연에는 프롬프트 캐시 영향이 섞였을 수 있다(추정 — `cachedTokens`가 no_think 1회차 58, 2·3회차 348로 다름). `no_think`의 reasoning 토큰 1(3회 모두) 원인은 확인하지 못했다(추정).
-
-## Verify it yourself (third party) / 제3자 직접 검증
-
-키·DB·운영자 없이 공개 RPC만으로 검증할 수 있다:
+Node.js 22, npm. API 키는 필요 없다(가짜 Kiln·로컬 체인). 실제 Kiln 호출은 `.env.example`을 `.env`로 복사해 `KILN_MODE=real`과 `KILN_API_KEY`를 채워야 하며, 실제 값은 커밋하지 않는다.
 
 ```bash
-npm install
-npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
+# 설치 (루트 + chain 패키지)
+npm ci
+npm --prefix chain ci
+
+# 1. 로컬 체인 노드 (별도 터미널, 종료 전까지 점유)
+npm run chain:node
+
+# 2. 배포 (MockKRWT + PolicyVault, vault에 1,000,000 mint)
+npm run deploy -- --chain localhost --rpc http://127.0.0.1:8545
+
+# 3. UI 시연 (로컬 체인·가짜 Kiln 고정) — http://127.0.0.1:3000
+CHAIN=localhost KILN_MODE=fake RPC_URL=http://127.0.0.1:8545 DATABASE_PATH=data.local/app-ui-dev.sqlite npm run dev
 ```
 
-메인 세션이 2026-09-29에 직접 실행해 확인(원문): `mismatches: 0`, 레코드 14건·온체인 이벤트 15건 전부 `OK`(각 항목의 재계산 해시 = 온체인 해시). `evidence/base-sepolia/evidence.json`을 변조한 사본으로 실행하면 해당 항목이 불일치로 보고된다(F-12 ②, `tests/integration/evidenceExport.test.ts`로 자동 검증됨).
-
-감사 화면(`/audit?tx=<hash>`)은 같은 재계산·대조를 tx hash 1건 단위로 브라우저에서 보여준다 — 정책·요청·AI 판단·차단 사유·승인자를 재구성하고 "해시 일치" 여부를 표시한다.
-
-## Human side / 사람이 보는 화면 4개
-
-| 화면 | 경로 | 내용 |
-|---|---|---|
-| ① 위임 | `/delegate` | 자연어 위임 문장 입력 → Kiln이 만든 정책 후보 확인·수정 → 소유자 브라우저 지갑 서명 |
-| ② 대시보드 | `/dashboard` | 잔여 예산·지출 목록, 승인 대기함(승인/거절 서명), 정지(pause) 버튼, 영수증 |
-| ③ 감사 | `/audit` | tx hash 입력 → 증거 재구성 + 해시 일치 표시 (제3자가 소유자·운영자 없이 검증) |
-| ④ 효율 | `/efficiency` | 흐름별 토큰 4종·cost·호출 수·Generation-Id, 규칙 차단 절감, 에너지 추정(2장 시나리오) |
-
-### 언어 선택 / UI language (F-17)
-
-- 화면은 기본 **한국어**다. 상단 메뉴의 "한국어/English" 버튼으로 전환하면 선택이 쿠키 `lang`(1년)에 저장되어 새로고침·화면 이동 뒤에도 유지되고, 서버가 그 값으로 `<html lang>`을 정해 첫 HTML부터 그 언어로 그린다. 모든 페이지가 동적 렌더로 바뀌었다(쿠키를 읽기 때문).
-- 제품명 화면 표시(로고·탭 제목): 한국어 "곳간지기" / 영어 "Allowance".
-- 번역 범위: 화면 고정 문구, 오류·차단 사유 문구(오류 제목은 번역, 서버·지갑이 준 세부 메시지는 영어 원문 그대로 함께 표시). **번역하지 않는 것**: AI(Kiln)가 생성한 문장(정책 `purpose`, 의도 판단 사유 — 증거 원문 그대로), 가게(가맹점) 이름, 금액 등 데이터 값, CLI 출력, 증거 JSON(해시가 달라지므로). 언어 전환은 표시만 바꾸며 API 요청·증거·온체인 tx는 같다.
-- 근거: `docs/PRD.md` F-17·N-11, `docs/Architecture.md` 10절 "UI 언어 (F-17)", `docs/DECISIONS.md` D-40~D-44, `docs/adr/0008-ui-locale-cookie-and-typed-dictionary.md`.
+E2E 8단계 데모와 증거 내보내기·검증을 한 번에 돌리려면(종료 코드 0 = 통과) 2번 다음에 `npm run e2e:local`을 실행한다. 전체 테스트는 `npm test`. 그 밖의 검증된 명령은 [docs/CodingRules.md](docs/CodingRules.md).
 
 ## Known limitations / 알려진 한계
 
-- 지갑 서명 UI는 통합 테스트(`tests/integration/walletOwnerAction.test.ts` 등)로만 검증했다 — 실제 MetaMask 등 브라우저 확장에서의 서명 흐름은 자동 검증되지 않았다(T-05 구현 근거, 인용).
-- 효율 리포트의 에너지 수치는 추정(assumed)이지 측정값이 아니다 — 위 "Efficiency" 절의 가정·출처 참조.
-- Base Sepolia 공개 RPC(`sepolia.base.org`)는 `eth_getLogs`를 1,000블록 범위로 제한한다(-32614) — `src/config/constants.ts`의 `LOG_BLOCK_CHUNK = 1_000n`으로 청크를 나눠 대응했다(T-07).
-- Qwen3 thinking 모드를 끄는 방법의 효과는 T-11(`intent_judge`)·T-14(`policy_parse`)에서 측정했다(위 두 소절 참조 — reasoning 토큰 제거, T-11 판단 9/9 match, T-14 구조 필드 6회 동일, T-18 목적 불일치 판단도 no_think에서 6/6 mismatch 유지 — 기본값 no_think 근거). `KILN_THINKING_MODE` 기본값은 `no_think`로 변경됐다(T-15, D-39) — Base Sepolia 제출 증거의 reasoning 토큰 1,864(`npm run report:efficiency` total 행)는 변경 전 `default` 모드 실행분이다. 남은 한계: ① 소표본(흐름당 입력 1개, 모드당 3회) ② `no_think`의 reasoning 토큰 1 원인 미확인(추정).
-- UI 언어(F-17): 영어를 고른 사용자는 서버가 그려 보낸 첫 HTML에서 탭 제목 "곳간지기"를 잠깐 보고, 화면이 뜨면 "Dashboard · Allowance"로 바뀐다(D-44 유지 — architect 판단; 레이아웃 메타데이터를 정적으로 둔 결과). 또한 지갑 연결 후 서명 흐름·게이트 문구의 한국어 화면은 지갑이 필요해 브라우저로 확인하지 못했다(T-17 QA 미검증).
-- 웹 접근성은 label·aria 연결만 리뷰에서 확인했다 — 명도 대비와 키보드 포커스 순서는 수치로 측정하지 않았다(QA 미검증 항목).
-- 공개 RPC 잔여 위험(추정, 이번 실제 실행에서는 나타나지 않음): 부하분산된 공개 RPC의 뒤처진 노드가 ① `getLogs` 범위를 조용히 잘라 이벤트를 놓치거나 ② 연속 tx에서 nonce를 늦게 읽어 "nonce too low"를 내거나 ③ `readContract`(`getState`·`getPending`)가 오래된 상태를 돌려줄 수 있다. 전용 RPC를 쓰면 완화된다(T-07 implementer 보고, reviewer 권고 — 인용).
-- Next.js 16의 `next dev`/`next build`가 루트 `AGENTS.md`를 자동으로 덧붙이는 문제가 있다 — 아래 "Known issue" 절 참조.
+- 소유자 지갑 서명이 필요한 단계(위임 확정·승인·정지)는 통합 테스트로만 검증했고, 실제 MetaMask 등 브라우저 확장에서의 서명 흐름은 자동 검증되지 않았다.
+- 에너지 수치는 추정이지 측정값이 아니다(위 "Efficiency" 절).
+- Base Sepolia 공개 RPC(`sepolia.base.org`)는 `eth_getLogs`를 1,000블록 범위로 제한해(-32614) 1,000블록 단위로 나눠 읽는다. 부하분산된 공개 RPC에서는 뒤처진 노드가 이벤트를 놓치거나 오래된 상태를 돌려줄 수 있다(추정, 이번 실제 실행에서는 나타나지 않음) — 전용 RPC를 쓰면 완화된다.
+- 웹 접근성은 label·aria 연결만 확인했다 — 명도 대비와 키보드 포커스 순서는 측정하지 않았다.
 
-## Known issue / 알려진 이슈
+## Documents / 문서
 
-- T-01 시점에 있었던 "Error writing artifacts definition: ENOENT … chain\build\artifacts\artifacts.d.ts" 로그는 T-02에서 컨트랙트(`chain/contracts/PolicyVault.sol`, `MockKRWT.sol`)가 추가된 뒤 사라졌다(implementer·quality-assurance 확인, T-02 구현 근거).
-- Next.js 16의 `next dev`/`next build`가 루트 `AGENTS.md` 끝에 `<!-- BEGIN:nextjs-agent-rules -->` 블록을 자동으로 덧붙인다. `AGENTS.md`는 사용자 소유·규칙 원본이므로 **이 블록을 커밋하지 않는다** — `npm run dev`/`npm run build` 실행 후 `git status`에 `AGENTS.md` 변경이 보이면 되돌린다(`docs/KitFeedback.md` #8).
-
-## Development pipeline / 개발 파이프라인
-
-아이디어 인터뷰 → 기획 → 설계 → 구현 → 리뷰/검증 → 문서화. 단계별 산출물과 게이트는 [AGENTS.md](AGENTS.md) 참조.
-
-인터뷰는 아이디어를 받아 적는 단계가 아니라 **같이 설계하는 대화**다: 개인/팀·언어·배포·기능 범위 등 빈칸을 질문으로 채우고, 선택지마다 추천 방향과 반대 방향을 함께 제시하며, 사용자가 "완성"을 선언할 때까지 계속된다. 절차는 [.agents/skills/idea-interview/SKILL.md](.agents/skills/idea-interview/SKILL.md).
-
-## Rule enforcement tools / 규칙 도구 (Claude Code · Codex · 안티그래비티)
-
-Claude Code / Codex / 안티그래비티 어느 도구로 열어도 같은 규칙(AGENTS.md)이 적용된다.
-
-| 도구 | 규칙 읽는 방식 | 강제 계층 활성 조건 |
-|---|---|---|
-| Claude Code | CLAUDE.md의 `@AGENTS.md` import | 자동 |
-| Codex | 루트 AGENTS.md 직접 읽음 | **최초 1회 `/hooks` 신뢰 승인 필요 — 안 하면 무동작** |
-| 안티그래비티 (Gemini) | 루트 AGENTS.md 직접 읽음 | cwd=워크스페이스 루트 전제 — `.env` 차단 1회 확인 필수 |
-
-## Reporting kit issues / 이 킷 자체의 문제를 발견하면
-
-규칙 때문에 막히거나 우회했다면 **여기서 규칙을 고치지 말고** [docs/KitFeedback.md](docs/KitFeedback.md)에 행을 추가한다. 나중에 템플릿 리포에서 그 표를 읽고 원본을 고치면 다음 프로젝트부터 반영된다.
-
-## Documents / 문서 지도
-
-| 문서 | 내용 |
-|---|---|
-| [docs/PRD.md](docs/PRD.md) | 요구사항, 사용자, Open Questions |
-| [docs/Architecture.md](docs/Architecture.md) | 구조, 계층, 배포 |
-| [docs/DECISIONS.md](docs/DECISIONS.md), [docs/adr/](docs/adr/) | 설계 결정·ADR |
-| [docs/Tasks.md](docs/Tasks.md) | 작업 목록·상태 |
-| [docs/CodingRules.md](docs/CodingRules.md) | 검증된 명령어, 코딩 규칙 |
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 변경 이력 |
-| [docs/DefinitionOfDone.md](docs/DefinitionOfDone.md), [docs/GitWorkflow.md](docs/GitWorkflow.md) | 완료 기준, Git 워크플로 |
+[PRD](docs/PRD.md) · [Architecture](docs/Architecture.md) · [DECISIONS](docs/DECISIONS.md) · [Tasks](docs/Tasks.md) · [CHANGELOG](docs/CHANGELOG.md)
