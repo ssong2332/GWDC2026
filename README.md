@@ -1,7 +1,7 @@
 # Allowance (곳간지기) — Agent Spending Control & Evidence Layer
 
-> 프로젝트 이름은 **곳간지기**(영문 **Allowance**)로 확정됐다 (PRD Open Question #2 해결, `docs/PRD.md`). "Agent Spending Control & Evidence Layer"는 기술명(부제)이다. 이 리포는 [start_coding](https://github.com/) 템플릿에서 초기화되어 현재 GWDC 2026 KOREA 해커톤 챌린지 B 출품작으로 진행 중이다.
-> This repo was bootstrapped from the [start_coding](https://github.com/) template and is now under active development as an entry for the GWDC 2026 KOREA hackathon, Challenge B.
+> 프로젝트 이름은 **곳간지기**(영문 **Allowance**)로 확정됐다 (PRD Open Question #2 해결, `docs/PRD.md`). "Agent Spending Control & Evidence Layer"는 기술명(부제)이다. 이 리포는 [start_coding](https://github.com/ssong2332/start_coding) 템플릿에서 초기화되었고, GWDC 2026 KOREA 해커톤 챌린지 B 출품작이다.
+> This repo was bootstrapped from the [start_coding](https://github.com/ssong2332/start_coding) template and is an entry for the GWDC 2026 KOREA hackathon, Challenge B.
 
 ## Declared function (one sentence) / 선언한 기능 (한 문장)
 
@@ -10,6 +10,68 @@
 **EN:** When an AI agent spends event/club budget on a user's behalf, spending limits are enforced by code and the on-chain `PolicyVault` — never by the AI — and every payment, block, approval, and pause is recorded so a third party can reconstruct it from the record alone.
 
 **KR:** AI 에이전트가 동아리·학생회 행사비를 대신 쓸 때, 한도 판정은 AI가 아니라 코드와 온체인 `PolicyVault`가 하고, 모든 결제·차단·승인·중지를 제3자가 기록만으로 재구성할 수 있게 남기는 지출 통제·증거 계층.
+
+## For judges / 심사위원 가이드
+
+> 이 절은 입구다. 자세한 내용은 각 링크의 절을 본다. / This section is an entry point — follow the links for details.
+
+세 경로 중 시간에 맞는 것을 고르면 된다. / Pick the path that fits your time.
+
+| 경로 / Path | 시간 / Time | 준비물 / Needs | 하는 일 / What you do |
+|---|---|---|---|
+| A | 5분 / 5 min | 브라우저만 / browser only (설치 없음 / no install) | Base Sepolia에 남은 기록 확인 / read the on-chain record |
+| B | 10분 / 10 min | Node.js 22, npm — `.env`·API 키 불필요 / no `.env`, no API key. Base Sepolia 공개 RPC 읽기 전용 / read-only public RPC | 제3자 검증·효율 표를 직접 실행 / run the third-party verification and the efficiency table yourself |
+| C | 화면 4개 / 4 screens | Node.js 22, npm — API 키 불필요 / no API key (가짜 Kiln·로컬 체인 / fake Kiln, local chain) | 로컬에서 화면 4개를 직접 사용 / use the 4 screens locally |
+
+### 경로 A — 5분, 설치 없이 기록만 확인 / Path A — 5 min, read the record (no install)
+
+- ["Base Sepolia evidence" 절](#base-sepolia-evidence--base-sepolia-실행-증거)의 표에서 사건별 BaseScan 링크를 연다: 정상 결제(step 2), 비허용 가맹점 차단(step 3), 승인 대기→승인(step 4), AI 목적 불일치 대기(step 5), 예산 초과 차단(step 6), 호출 폭주 차단(step 7), 정지 중 차단(step 8).
+- 같은 기록을 코드로 대조하는 방법은 ["Verify it yourself (third party)" 절](#verify-it-yourself-third-party--제3자-직접-검증)에 있다.
+- EN: open the per-event BaseScan links in the [Base Sepolia evidence](#base-sepolia-evidence--base-sepolia-실행-증거) table (normal payment, blocked merchant, pending→approved, AI purpose mismatch → pending, over-budget block, rate-limit block, blocked while paused). How to re-check the same record by code: [Verify it yourself](#verify-it-yourself-third-party--제3자-직접-검증).
+
+### 경로 B — 10분, 제3자 검증을 직접 실행 / Path B — 10 min, run the third-party verification yourself
+
+`.env`·API 키가 필요 없다. Base Sepolia 공개 RPC를 읽기 전용으로만 쓴다. / No `.env` or API key; the Base Sepolia public RPC is used read-only.
+
+```bash
+# 1. 설치 / install
+npm ci
+
+# 2. 증거 JSON의 해시를 온체인 이벤트와 대조 (mismatches 0이면 종료 코드 0)
+npm run evidence:verify -- --file evidence/base-sepolia/evidence.json
+
+# 3. 흐름별 토큰·cost·에너지 추정 표
+npm run report:efficiency -- --file evidence/base-sepolia/evidence.json
+```
+
+- 2번의 기대 결과와 3번 표의 해석은 ["Verify it yourself"](#verify-it-yourself-third-party--제3자-직접-검증)·["Efficiency (per flow)"](#efficiency-per-flow--흐름별-효율) 절에 있다. 에너지 수치는 추정(2장 시나리오)이지 측정값이 아니다.
+- EN: step 2 exits 0 when `mismatches` is 0; step 3 prints the per-flow table (energy is an estimate under a 2-card scenario, not a measurement).
+
+### 경로 C — 로컬에서 화면 4개 직접 써 보기 / Path C — use the 4 screens locally
+
+API 키가 필요 없다: 가짜 Kiln(`KILN_MODE=fake`)과 로컬 체인을 쓴다. / No API key: fake Kiln and a local chain.
+
+- 준비: `npm ci`와 `npm --prefix chain ci`(체인 패키지는 별도 설치 — ["Required environment"](#required-environment--필요-환경) 절). 이어서 ["Local demo / 로컬 데모 방법"](#local-demo--로컬-데모-방법) 절의 1·2·4번 명령(로컬 노드 → 배포 → 개발 서버)을 그대로 실행하고 `http://127.0.0.1:3000`을 연다. 3번(`npm run e2e:local`)은 화면과 별개인 E2E 8단계 검증이다.
+- 화면별로 볼 것 (["Human side"](#human-side--사람이-보는-화면-4개) 절 기준):
+
+| 화면 / Screen | 경로 / Path | 볼 것 / What to look at |
+|---|---|---|
+| ① 위임 / Delegate | `/delegate` | 자연어 위임 문장 → 정책 후보(예산·허용 가맹점·건당 승인 임계·기한) 확인·수정 / natural-language delegation → policy candidate |
+| ② 대시보드 / Dashboard | `/dashboard` | 잔여 예산·지출 목록, 승인 대기함(승인/거절), 정지 버튼, 영수증 / remaining budget, spend list, pending inbox, pause button, receipts |
+| ③ 감사 / Audit | `/audit` | tx hash 입력 → 증거 재구성과 "해시 일치" 표시 / enter a tx hash → reconstructed evidence and hash-match indicator |
+| ④ 효율 / Efficiency | `/efficiency` | 흐름별 토큰·cost·호출 수, 규칙 차단으로 아낀 Kiln 호출, 에너지 추정 / per-flow tokens, cost, calls, Kiln calls avoided by rule blocks, energy estimate |
+
+- 상단 메뉴의 "한국어/English" 버튼으로 화면 언어를 바꾼다(기본 한국어 — ["언어 선택"](#언어-선택--ui-language-f-17) 소절). / Switch the UI language with the "한국어/English" button in the top menu (Korean by default).
+- 한계: 위임 확정·승인·정지처럼 소유자 지갑 서명이 필요한 단계는 브라우저 지갑 확장이 있어야 하고, 실제 MetaMask 등 확장에서의 서명 흐름은 자동 검증되지 않았다 (["Known limitations"](#known-limitations--알려진-한계) 절, T-05 구현 근거). / Steps that need the owner's wallet signature (confirm delegation, approve, pause) need a browser wallet extension; signing in a real extension (e.g. MetaMask) was not automatically verified.
+
+### 확인하면 되는 것 / What to check
+
+1. 한도 판정은 AI가 아니라 코드와 온체인 `PolicyVault`가 한다 — 판정 순서는 ["Boundary & where enforced"](#boundary--where-enforced--경계와-강제-지점) 표. / Limits are enforced by code and the on-chain `PolicyVault`, not by the AI.
+2. AI(Kiln)는 경계를 넓힐 수 없다 — 목적 불일치·판단 실패 시 결과는 승인 대기로만 엄격화된다(D-10 fail-closed). 경로 A의 step 5가 그 사례다. / The AI cannot widen the boundary; a mismatch only tightens the result to "pending approval" (path A, step 5).
+3. 차단·승인 대기·정지도 온체인 이벤트(`SpendBlocked`·`SpendPending`·`VaultPaused`)로 남는다 — 경로 A의 step 3·5·6·7·8. / Blocks, pending approvals, and pauses are also recorded as on-chain events (path A, steps 3, 5, 6, 7, 8).
+4. 증거 JSON의 재계산 해시가 온체인 해시와 일치한다 — 경로 B 2번이 `mismatches: 0`으로 끝나는지 본다. / The recomputed hash of the evidence JSON matches the on-chain hash — check that path B step 2 ends with `mismatches: 0`.
+
+실제 Kiln(`qwen3-32b`) 호출은 `KILN_MODE=real`과 `KILN_API_KEY`가 필요하다 — 절차는 ["Base Sepolia 실행 절차"](#base-sepolia-실행-절차-사용자용-재현-방법) 절. 위 세 경로는 이 키 없이 된다. / Calling the real Kiln (`qwen3-32b`) needs `KILN_MODE=real` and a `KILN_API_KEY`; the three paths above do not.
 
 ## Who / problem / what the AI does vs. what the code enforces / 사용자·문제·AI와 코드의 경계
 
